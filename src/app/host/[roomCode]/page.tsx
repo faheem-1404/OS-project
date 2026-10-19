@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { connection } from "next/server";
 
 import { QrCode } from "@/components/qr-code";
@@ -83,8 +84,14 @@ export default async function HostRoomPage({
     );
   }
 
+  const headerList = await headers();
+  const hostHeader = headerList.get("x-forwarded-host") ?? headerList.get("host");
+  const proto = headerList.get("x-forwarded-proto") ?? "https";
+  const detectedBase = hostHeader ? `${proto}://${hostHeader}` : null;
+
   const base =
     process.env.NEXT_PUBLIC_APP_URL ??
+    detectedBase ??
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
   const joinUrl = `${base}/join?room=${code}`;
 
