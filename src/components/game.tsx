@@ -468,7 +468,7 @@ export function DecisionButtons({
             disabled={disabled}
             onClick={() => onChoose(d)}
             whileTap={disabled ? undefined : { scale: 0.97 }}
-            className={`relative overflow-hidden rounded-2xl font-bold tracking-[0.1em] ring-1 transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
+            className={`relative overflow-hidden rounded-2xl font-bold tracking-[0.1em] ring-1 transition-all select-none touch-manipulation cursor-pointer active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 ${
               lg ? "px-8 py-10 text-4xl sm:text-6xl" : "px-4 py-6 text-lg"
             }`}
             style={{

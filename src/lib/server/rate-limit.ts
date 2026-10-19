@@ -25,8 +25,8 @@ export interface Limit {
   windowMs: number;
 }
 
-export const JOIN_LIMIT: Limit = { max: 30, windowMs: 60_000 };
-export const VOTE_LIMIT: Limit = { max: 20, windowMs: 10_000 };
+export const JOIN_LIMIT: Limit = { max: 500, windowMs: 60_000 };
+export const VOTE_LIMIT: Limit = { max: 1000, windowMs: 10_000 };
 
 export function clientKey(headers: Headers, fallback = "anon"): string {
   return (

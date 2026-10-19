@@ -558,7 +558,7 @@ function Control({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`flex w-full items-center justify-between gap-2 rounded-xl px-4 py-3 text-sm ring-1 transition disabled:cursor-not-allowed disabled:opacity-40 ${tone}`}
+      className={`flex w-full items-center justify-between gap-2 rounded-xl px-4 py-3 text-sm ring-1 transition select-none touch-manipulation cursor-pointer active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 ${tone}`}
     >
       <span className="flex items-center gap-2 font-semibold">
         {icon}

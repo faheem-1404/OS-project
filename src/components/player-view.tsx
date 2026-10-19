@@ -40,12 +40,26 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [optimisticVote, setOptimisticVote] = useState<Decision | null>(null);
   const lastRoundRef = useRef<number>(-1);
 
   const snap = snapshot ?? initial;
   const round = snap.round;
   const myVote = snap.me?.vote ?? null;
   const revealed = round?.status === "revealed";
+
+  // Reset optimistic vote whenever round changes or session ends
+  useEffect(() => {
+    setOptimisticVote(null);
+  }, [round?.roundIndex, snap.status]);
+
+  const effectiveVote = myVote ?? (optimisticVote ? {
+    roundIndex: round?.roundIndex ?? 0,
+    decision: optimisticVote,
+    outcome: "correct" as const,
+    points: null,
+    submittedAt: Date.now(),
+  } : null);
 
   // 5-second pre-roll overlay.
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -93,16 +107,27 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
     snap.status === "active" &&
     round?.status === "open" &&
     msLeft !== null &&
-    !myVote;
+    !effectiveVote;
 
   function choose(decision: Decision) {
-    if (!canVote || submitting) return;
+    if (!canVote || submitting || optimisticVote) return;
+    setOptimisticVote(decision);
     setSubmitting(true);
+    sfx("lock");
     setError(null);
     startTransition(async () => {
-      const res = await castVoteAction(snap.code, decision);
-      setSubmitting(false);
-      if (!res.ok) setError(res.error ?? "Could not record your vote.");
+      try {
+        const res = await castVoteAction(snap.code, decision);
+        if (!res.ok) {
+          setOptimisticVote(null);
+          setError(res.error ?? "Could not record your vote.");
+        }
+      } catch {
+        setOptimisticVote(null);
+        setError("Network error. Please try again.");
+      } finally {
+        setSubmitting(false);
+      }
     });
   }
 
@@ -224,7 +249,7 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                   </div>
                   <RevealPanel reveal={round?.reveal ?? null} />
                 </div>
-              ) : myVote ? (
+              ) : effectiveVote ? (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -233,7 +258,7 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                   <CheckCircle2 className="mx-auto h-12 w-12 text-granted" />
                   <p className="mt-3 text-lg font-bold">Answer locked in</p>
                   <p className="mt-1 text-sm text-ink-dim">
-                    You chose <span className="font-bold text-ink">{myVote.decision}</span>. Sit
+                    You chose <span className="font-bold text-ink">{effectiveVote.decision}</span>. Sit
                     tight — the host will reveal when the room has answered.
                   </p>
                 </motion.div>

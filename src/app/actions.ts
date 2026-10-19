@@ -108,7 +108,6 @@ export async function hostCommandAction(
       default:
         throw new GameError("Unknown command.");
     }
-    revalidatePath(`/host/${target}`);
     return { ok: true, data: { code: target } };
   } catch (error) {
     return fail(error);
@@ -161,7 +160,6 @@ export async function castVoteAction(code: string, decision: string): Promise<Ac
     const target = code.toUpperCase();
     const token = await readPlayerToken(target);
     await store().submitVote(target, token ?? "", decision);
-    revalidatePath(`/play/${target}`);
     return { ok: true };
   } catch (error) {
     return fail(error);
