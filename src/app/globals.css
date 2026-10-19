@@ -1,26 +1,260 @@
 @import "tailwindcss";
 
+/* ==================================================================
+   CampusLock — design system
+   Near-black navy, electric cyan, semantic green/red/amber.
+   Everything below is a token; components never hardcode colours.
+   ================================================================== */
+
+@theme {
+  --color-void: #04070d;
+  --color-abyss: #070b14;
+  --color-panel: #0b1220;
+  --color-panel-2: #0f1826;
+  --color-edge: #1b2940;
+
+  --color-cyan-glow: #22d3ee;
+  --color-cyan-deep: #0891b2;
+  --color-granted: #2ee6a0;
+  --color-denied: #ff4d6d;
+  --color-warn: #ffb020;
+  --color-violet: #8b7cff;
+
+  --color-ink: #e8f1ff;
+  --color-ink-dim: #9fb2cc;
+  --color-ink-faint: #61748f;
+
+  --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-void);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+}
+
+/* ------------------------------------------------------------------
+   Ambient layers: grid, vignette, scanline. Fixed so they never
+   interfere with scroll position.
+   ------------------------------------------------------------------ */
+.campuslock-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.campuslock-grid {
+  background-image:
+    linear-gradient(to right, rgba(34, 211, 238, 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(34, 211, 238, 0.055) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 35%, transparent 100%);
+}
+
+.campuslock-scan::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.02) 0px,
+    rgba(255, 255, 255, 0.02) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  opacity: 0.5;
+}
+
+.campuslock-vignette {
+  background: radial-gradient(
+    ellipse 120% 80% at 50% -10%,
+    rgba(34, 211, 238, 0.12),
+    transparent 60%
+  );
+}
+
+/* ------------------------------------------------------------------
+   Surfaces
+   ------------------------------------------------------------------ */
+.panel {
+  background: linear-gradient(
+    160deg,
+    rgba(15, 24, 38, 0.86),
+    rgba(8, 13, 22, 0.78)
+  );
+  border: 1px solid rgba(34, 211, 238, 0.14);
+  border-radius: 18px;
+  backdrop-filter: blur(14px);
+}
+
+.panel-tight {
+  background: rgba(13, 20, 32, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+}
+
+.edge-glow {
+  box-shadow:
+    0 0 0 1px rgba(34, 211, 238, 0.22),
+    0 18px 60px -28px rgba(34, 211, 238, 0.55);
+}
+
+.hairline {
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+/* ------------------------------------------------------------------
+   Typography helpers
+   ------------------------------------------------------------------ */
+.label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------
+   Status indicator
+   ------------------------------------------------------------------ */
+.pulse-dot {
+  position: relative;
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+}
+.pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: inherit;
+  animation: ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes ping {
+  75%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Ambient keyframes
+   ------------------------------------------------------------------ */
+@keyframes sweep {
+  0% {
+    transform: translateY(-120%);
+  }
+  100% {
+    transform: translateY(520%);
+  }
+}
+
+.sweep-line {
+  animation: sweep 7s linear infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.breathe {
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+.shimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.16),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: shimmer 2.2s infinite;
+}
+
+/* ------------------------------------------------------------------
+   Reduced motion
+   Respects the OS setting AND the in-app toggle (data-reduced on <html>)
+   ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+html[data-reduced="true"] *,
+html[data-reduced="true"] *::before,
+html[data-reduced="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+/* ------------------------------------------------------------------
+   Scrollbars
+   ------------------------------------------------------------------ */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(34, 211, 238, 0.18);
+  border-radius: 9999px;
+}
+
+/* ------------------------------------------------------------------
+   Projection tuning: on very large screens everything scales up so the
+   back row can read it.
+   ------------------------------------------------------------------ */
+.screen-mode {
+  font-size: clamp(14px, 0.85vw, 20px);
 }
