@@ -28,13 +28,16 @@ export async function GET(
 
   async function project() {
     const snap = await s.snapshot(target, { isHost });
-    if (!snap) return null;
+    const mePlayer = playerId ? snap.players.find((p) => p.id === playerId) : null;
     snap.me = playerId
       ? {
           id: playerId,
           // Recomputed on every frame so a just-cast vote is reflected
           // immediately rather than at the next unrelated mutation.
           vote: playerToken ? await s.myVote(target, playerToken) : null,
+          roleId: mePlayer?.roleId,
+          badgeStatus: mePlayer?.badgeStatus,
+          temporaryGrants: mePlayer?.temporaryGrants,
         }
       : null;
     return snap;

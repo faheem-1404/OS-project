@@ -527,6 +527,14 @@ export class SupabaseStore {
     await this.bumpRoom(room.id, { status: "finished" });
   }
 
+  async updateUserRole(_code: string, _hostToken: string, _playerId: string, _newRole: string): Promise<void> {}
+  async toggleUserRevocation(_code: string, _hostToken: string, _playerId: string): Promise<void> {}
+  async resolveAccessRequest(_code: string, _hostToken: string, _requestId: string, _decision: "approve" | "reject"): Promise<void> {}
+  async attemptAccess(_code: string, _playerToken: string, _resourceId: string): Promise<{ granted: boolean; reason: string }> {
+    return { granted: true, reason: "Access granted under Supabase fallback." };
+  }
+  async requestEmergencyAccess(_code: string, _playerToken: string, _resourceId: string, _reason: string): Promise<void> {}
+
   /* -------------------------- player ops -------------------------- */
 
   async join(code: string, nicknameRaw: string) {
@@ -744,6 +752,9 @@ export class SupabaseStore {
       isBot: p.is_bot ?? false,
       isConnected: p.is_connected ?? true,
       joinedAt: p.joined_at,
+      roleId: "undergrad",
+      badgeStatus: "active",
+      temporaryGrants: [],
     }));
     const leaderboard = [...players].sort(
       (a, b) => b.score - a.score || Date.parse(a.joinedAt) - Date.parse(b.joinedAt),

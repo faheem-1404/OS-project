@@ -50,7 +50,9 @@ export interface HostOps {
   nextRound(code: string, hostToken: string): Promise<void>;
   skipRound(code: string, hostToken: string): Promise<void>;
   restartRound(code: string, hostToken: string): Promise<void>;
-  endGame(code: string, hostToken: string): Promise<void>;
+  updateUserRole(code: string, hostToken: string, playerId: string, newRole: string): Promise<void>;
+  toggleUserRevocation(code: string, hostToken: string, playerId: string): Promise<void>;
+  resolveAccessRequest(code: string, hostToken: string, requestId: string, decision: "approve" | "reject"): Promise<void>;
 }
 
 export interface PlayerOps {
@@ -64,6 +66,8 @@ export interface PlayerOps {
   ): Promise<{ vote: MyVote; snapshot: RoomSnapshot }>;
   myVote(code: string, playerToken: string): Promise<MyVote | null>;
   identifyPlayer(code: string, playerToken: string | null): Promise<string | null>;
+  attemptAccess(code: string, playerToken: string, resourceId: string): Promise<{ granted: boolean; reason: string }>;
+  requestEmergencyAccess(code: string, playerToken: string, resourceId: string, reason: string): Promise<void>;
 }
 
 export interface GameStore extends HostOps, PlayerOps {

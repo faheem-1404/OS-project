@@ -3,8 +3,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { computePoints, isValidDecision, sanitizeNickname } from "@/lib/scoring";
+import { CAMPUS_ROLES, evaluateAccess, getResource, getRole } from "@/lib/rbac-rules";
 import type {
+  AuditLogEntry,
   Decision,
+  EmergencyAccessRequest,
   MyVote,
   PlayerView,
   RoomSnapshot,
@@ -29,6 +32,11 @@ interface RoundRecord {
   skipped: boolean;
 }
 
+interface TemporaryGrantRecord {
+  resourceId: string;
+  expiresAt: number;
+}
+
 interface PlayerRecord {
   id: string;
   nickname: string;
@@ -40,6 +48,9 @@ interface PlayerRecord {
   lastSeenAt: number;
   /** Total milliseconds spent voting — used for deterministic tie-breaks. */
   msTotal: number;
+  roleId: string;
+  badgeStatus: "active" | "revoked";
+  temporaryGrants: TemporaryGrantRecord[];
 }
 
 interface VoteRecord {
@@ -66,6 +77,8 @@ interface RoomRecord {
   rounds: RoundRecord[];
   players: PlayerRecord[];
   votes: VoteRecord[];
+  accessRequests: EmergencyAccessRequest[];
+  auditLogs: AuditLogEntry[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -333,6 +346,17 @@ export class LocalStore {
       rounds: [],
       players: [],
       votes: [],
+      accessRequests: [],
+      auditLogs: [
+        {
+          id: randomUUID(),
+          timestamp: now,
+          actor: "SYSTEM",
+          action: "ROOM_INITIALIZED",
+          outcome: "GRANTED",
+          detail: `CampusLock RBAC Security Engine initialized for room ${code}. Standard policy profiles active.`,
+        },
+      ],
     };
 
     for (let i = 1; i <= totalRounds; i += 1) room.rounds.push(emptyRound(i));
@@ -357,6 +381,7 @@ export class LocalStore {
     ];
     const now = Date.now();
     names.forEach((nickname, i) => {
+      const role = CAMPUS_ROLES[i % CAMPUS_ROLES.length];
       const player: PlayerRecord = {
         id: randomUUID(),
         nickname,
@@ -367,6 +392,9 @@ export class LocalStore {
         joinedAt: now + i,
         lastSeenAt: now,
         msTotal: 0,
+        roleId: role.id,
+        badgeStatus: "active",
+        temporaryGrants: [],
       };
       room.players.push(player);
       this.castBotVote(room, player);
@@ -591,6 +619,104 @@ export class LocalStore {
     emit(room.code);
   }
 
+  async updateUserRole(
+    code: string,
+    hostToken: string,
+    playerId: string,
+    newRole: string,
+  ): Promise<void> {
+    const room = this.requireHost(code, hostToken);
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player) throw new GameError("Player not found.", 404);
+    const role = getRole(newRole);
+    const oldRole = getRole(player.roleId ?? "undergrad");
+    const isPromotion = role.level >= oldRole.level;
+    player.roleId = role.id;
+    const now = Date.now();
+    if (!room.auditLogs) room.auditLogs = [];
+    room.auditLogs.unshift({
+      id: randomUUID(),
+      timestamp: now,
+      actor: "ADMIN",
+      action: isPromotion ? "ROLE_PROMOTED" : "ROLE_DEMOTED",
+      outcome: isPromotion ? "PROMOTED" : "DEMOTED",
+      detail: `Admin ${isPromotion ? "promoted" : "demoted"} ${player.nickname} to "${role.name}" (Level ${role.level}).`,
+    });
+    if (room.auditLogs.length > 100) room.auditLogs.pop();
+    scheduleSave();
+    emit(room.code);
+  }
+
+  async toggleUserRevocation(code: string, hostToken: string, playerId: string): Promise<void> {
+    const room = this.requireHost(code, hostToken);
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player) throw new GameError("Player not found.", 404);
+    const wasRevoked = player.badgeStatus === "revoked";
+    player.badgeStatus = wasRevoked ? "active" : "revoked";
+    const now = Date.now();
+    if (!room.auditLogs) room.auditLogs = [];
+    room.auditLogs.unshift({
+      id: randomUUID(),
+      timestamp: now,
+      actor: "ADMIN",
+      action: "REVOCATION_TOGGLE",
+      outcome: wasRevoked ? "GRANTED" : "REVOKED",
+      detail: `Admin ${wasRevoked ? "RESTORED" : "REVOKED"} credential badge for ${player.nickname}.`,
+    });
+    if (room.auditLogs.length > 100) room.auditLogs.pop();
+    scheduleSave();
+    emit(room.code);
+  }
+
+  async resolveAccessRequest(
+    code: string,
+    hostToken: string,
+    requestId: string,
+    decision: "approve" | "reject",
+  ): Promise<void> {
+    const room = this.requireHost(code, hostToken);
+    if (!room.accessRequests) room.accessRequests = [];
+    const req = room.accessRequests.find((r) => r.id === requestId);
+    if (!req) throw new GameError("Request not found.", 404);
+    if (req.status !== "pending") throw new GameError("Request has already been processed.", 409);
+
+    const now = Date.now();
+    req.status = decision === "approve" ? "approved" : "rejected";
+    const player = room.players.find((p) => p.id === req.playerId);
+
+    if (!room.auditLogs) room.auditLogs = [];
+    if (decision === "approve" && player) {
+      if (!player.temporaryGrants) player.temporaryGrants = [];
+      const expiresAt = now + 60 * 1000;
+      player.temporaryGrants.push({
+        resourceId: req.resourceId,
+        expiresAt,
+      });
+      room.auditLogs.unshift({
+        id: randomUUID(),
+        timestamp: now,
+        actor: "ADMIN",
+        action: "EMERGENCY_APPROVED",
+        targetResource: req.resourceName,
+        outcome: "EMERGENCY_APPROVED",
+        detail: `Admin APPROVED 60s emergency pass for ${req.playerNickname} (${req.playerRole}) to enter ${req.resourceName}.`,
+      });
+    } else {
+      room.auditLogs.unshift({
+        id: randomUUID(),
+        timestamp: now,
+        actor: "ADMIN",
+        action: "EMERGENCY_REJECTED",
+        targetResource: req.resourceName,
+        outcome: "EMERGENCY_REJECTED",
+        detail: `Admin REJECTED emergency access request from ${req.playerNickname} for ${req.resourceName}.`,
+      });
+    }
+    if (room.auditLogs.length > 100) room.auditLogs.pop();
+    scheduleSave();
+    emit(room.code);
+  }
+
   /* --------------------------- player ops -------------------------- */
 
   async join(code: string, nicknameRaw: string): Promise<{
@@ -612,6 +738,7 @@ export class LocalStore {
       throw new GameError("That nickname is already taken in this room.", 409);
     }
 
+    const role = CAMPUS_ROLES[room.players.length % CAMPUS_ROLES.length];
     const playerToken = newToken();
     const now = Date.now();
     const player: PlayerRecord = {
@@ -624,8 +751,21 @@ export class LocalStore {
       joinedAt: now,
       lastSeenAt: now,
       msTotal: 0,
+      roleId: role.id,
+      badgeStatus: "active",
+      temporaryGrants: [],
     };
     room.players.push(player);
+    if (!room.auditLogs) room.auditLogs = [];
+    room.auditLogs.unshift({
+      id: randomUUID(),
+      timestamp: now,
+      actor: nickname,
+      action: "IDENTITY_ISSUED",
+      outcome: "GRANTED",
+      detail: `Digital badge assigned: ${nickname} as "${role.name}" (Level ${role.level}).`,
+    });
+    if (room.auditLogs.length > 100) room.auditLogs.pop();
     scheduleSave();
     emit(room.code);
 
@@ -705,8 +845,6 @@ export class LocalStore {
     const round = this.activeRound(room);
     if (!round) throw new GameError("No question is active right now.", 409);
     if (round.status !== "open") throw new GameError("Voting is closed for this round.", 409);
-    // A paused round has no end time, so the window check alone would let
-    // votes through. Pausing must freeze participation too.
     if (room.status === "paused") throw new GameError("The host has paused this round.", 409);
 
     const now = Date.now();
@@ -727,13 +865,10 @@ export class LocalStore {
       (v) => v.roundIndex === round.roundIndex && v.playerId === player.id,
     );
     if (existing) {
-      // Idempotent: a repeated submission returns the stored vote and
-      // never awards points twice.
       return {
         vote: {
           roundIndex: round.roundIndex,
           decision: existing.decision,
-          // Reached only while the round is still open, so points are pending.
           points: null,
         },
         snapshot: this.toSnapshot(room, false),
@@ -758,6 +893,97 @@ export class LocalStore {
       vote: { roundIndex: round.roundIndex, decision, points: null },
       snapshot: this.toSnapshot(room, false),
     };
+  }
+
+  async attemptAccess(
+    code: string,
+    playerToken: string,
+    resourceId: string,
+  ): Promise<{ granted: boolean; reason: string }> {
+    const { room, player } = this.requirePlayer(code, playerToken);
+    const now = Date.now();
+    player.lastSeenAt = now;
+    if (!player.temporaryGrants) player.temporaryGrants = [];
+    player.temporaryGrants = player.temporaryGrants.filter((g) => g.expiresAt > now);
+
+    const res = evaluateAccess(
+      player.roleId ?? "undergrad",
+      resourceId,
+      player.badgeStatus === "revoked",
+      player.temporaryGrants,
+    );
+
+    const resource = getResource(resourceId);
+    const resourceName = resource?.name ?? resourceId;
+    const role = getRole(player.roleId ?? "undergrad");
+
+    if (!room.auditLogs) room.auditLogs = [];
+    room.auditLogs.unshift({
+      id: randomUUID(),
+      timestamp: now,
+      actor: player.nickname,
+      action: "ACCESS_ATTEMPT",
+      targetResource: resourceName,
+      outcome: res.granted ? "GRANTED" : "DENIED",
+      detail: `${player.nickname} (${role.name}) attempted entry to ${resourceName}. Result: ${res.granted ? "PERMITTED" : "DENIED"} (${res.reason}).`,
+    });
+    if (room.auditLogs.length > 100) room.auditLogs.pop();
+
+    scheduleSave();
+    emit(room.code);
+    return res;
+  }
+
+  async requestEmergencyAccess(
+    code: string,
+    playerToken: string,
+    resourceId: string,
+    reason: string,
+  ): Promise<void> {
+    const { room, player } = this.requirePlayer(code, playerToken);
+    const now = Date.now();
+    player.lastSeenAt = now;
+    const resource = getResource(resourceId);
+    const resourceName = resource?.name ?? resourceId;
+    const role = getRole(player.roleId ?? "undergrad");
+
+    if (!room.accessRequests) room.accessRequests = [];
+    const existing = room.accessRequests.find(
+      (r) => r.playerId === player.id && r.resourceId === resourceId && r.status === "pending",
+    );
+    if (existing) {
+      throw new GameError("An emergency request for this door is already pending admin review.", 409);
+    }
+
+    const req: EmergencyAccessRequest = {
+      id: randomUUID(),
+      playerId: player.id,
+      playerNickname: player.nickname,
+      playerRole: role.name,
+      resourceId,
+      resourceName,
+      reason: reason.trim() || "Urgent access requested",
+      status: "pending",
+      requestedAt: now,
+    };
+
+    room.accessRequests.unshift(req);
+    if (room.accessRequests.length > 50) room.accessRequests.pop();
+
+    if (!room.auditLogs) room.auditLogs = [];
+    room.auditLogs.unshift({
+      id: randomUUID(),
+      timestamp: now,
+      actor: player.nickname,
+      action: "EMERGENCY_REQUEST",
+      targetResource: resourceName,
+      outcome: "DENIED",
+      detail: `${player.nickname} (${role.name}) submitted emergency access petition for ${resourceName}: "${req.reason}".`,
+    });
+    if (room.auditLogs.length > 100) room.auditLogs.pop();
+
+    scheduleSave();
+    emit(room.code);
   }
 
   /* --------------------------- projection -------------------------- */
@@ -806,6 +1032,9 @@ export class LocalStore {
       isBot: p.isBot,
       isConnected: p.isConnected,
       joinedAt: new Date(p.joinedAt).toISOString(),
+      roleId: p.roleId ?? "undergrad",
+      badgeStatus: p.badgeStatus ?? "active",
+      temporaryGrants: (p.temporaryGrants ?? []).filter((g) => g.expiresAt > now),
     }));
 
     const leaderboard = [...players].sort((a, b) => {
@@ -838,6 +1067,8 @@ export class LocalStore {
         : null,
       players,
       leaderboard,
+      accessRequests: (room.accessRequests ?? []).map((r) => ({ ...r })),
+      auditLogs: (room.auditLogs ?? []).slice(0, 50),
       isHost,
     };
   }

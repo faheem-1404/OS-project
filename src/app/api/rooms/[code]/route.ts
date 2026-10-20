@@ -22,8 +22,15 @@ export async function GET(
 
   const playerToken = await readPlayerToken(target);
   const playerId = await s.identifyPlayer(target, playerToken);
+  const mePlayer = playerId ? snapshot.players.find((p) => p.id === playerId) : null;
   snapshot.me = playerId
-    ? { id: playerId, vote: playerToken ? await s.myVote(target, playerToken) : null }
+    ? {
+        id: playerId,
+        vote: playerToken ? await s.myVote(target, playerToken) : null,
+        roleId: mePlayer?.roleId,
+        badgeStatus: mePlayer?.badgeStatus,
+        temporaryGrants: mePlayer?.temporaryGrants,
+      }
     : null;
 
   return Response.json(snapshot, {

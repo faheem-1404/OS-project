@@ -1,32 +1,55 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
+  AlertTriangle,
+  BadgeAlert,
+  Check,
+  CheckCircle2,
+  ChevronDown,
   CircleStop,
+  Clock,
   Copy,
   ExternalLink,
   Eye,
   FastForward,
+  IdCard,
+  Key,
+  Layers,
   Loader2,
   Lock,
   MonitorUp,
   Pause,
   Play,
+  Radio,
   RefreshCw,
   RotateCcw,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
   SkipForward,
+  Sparkles,
   Square,
+  Terminal,
   Trophy,
   Unlock,
+  UserCheck,
   Users,
+  UserX,
   Volume2,
   VolumeX,
+  X,
   Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 
-import { hostCommandAction } from "@/app/actions";
+import {
+  hostCommandAction,
+  resolveAccessRequestAction,
+  toggleUserRevocationAction,
+  updateUserRoleAction,
+} from "@/app/actions";
 import { usePrefs, useSfx } from "@/components/prefs";
 import {
   ConnectionBadge,
@@ -38,6 +61,7 @@ import {
   VoteBars,
 } from "@/components/game";
 import { ErrorNote, Logo, Panel, SectionTitle, StatusPill } from "@/components/ui";
+import { CAMPUS_RESOURCES, CAMPUS_ROLES, getRole } from "@/lib/rbac-rules";
 import { useRoom, useServerTimer } from "@/lib/client/useRoom";
 import type { RoomSnapshot } from "@/lib/types";
 
@@ -60,24 +84,26 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
   const [copied, setCopied] = useState<string | null>(null);
   const [passphrase, setPassphrase] = useState<string | null>(null);
 
+  // Admin view tab: "rbac" (Command Center) vs "scenarios" (Quiz)
+  const [adminTab, setAdminTab] = useState<"rbac" | "scenarios">("rbac");
+  const [auditFilter, setAuditFilter] = useState<"all" | "denials" | "promotions" | "emergency">("all");
+
   const code = initial.code;
 
-  // The passphrase is shown once, from this browser only.
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem(`cl_pass:${code}`);
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- the passphrase is read from session storage once, on mount.
       if (stored) setPassphrase(stored);
     } catch {
       /* storage unavailable */
     }
   }, [code]);
 
-  const status = snapshot?.status ?? "waiting";
-  const round = snapshot?.round ?? null;
+  const snap = snapshot ?? initial;
+  const status = snap.status ?? "waiting";
+  const round = snap.round ?? null;
   const revealed = round?.status === "revealed";
 
-  // Suspense + result sounds, driven purely by server state transitions.
   const prevRevealed = useMemo(() => revealed, [revealed]);
   useEffect(() => {
     if (prevRevealed && revealed) {
@@ -104,11 +130,75 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
     }
   }
 
-  const connected = snapshot?.players.filter((p) => p.isConnected).length ?? 0;
-  const total = snapshot?.players.length ?? 0;
+  async function handleRoleChange(playerId: string, newRole: string) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await updateUserRoleAction(code, playerId, newRole);
+        if (res.ok) {
+          sfx("lock");
+        } else {
+          setError(res.error ?? "Failed to update role.");
+        }
+      } catch {
+        setError("Network error updating role.");
+      }
+    });
+  }
+
+  async function handleToggleRevocation(playerId: string) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await toggleUserRevocationAction(code, playerId);
+        if (res.ok) {
+          sfx("denied");
+        } else {
+          setError(res.error ?? "Failed to toggle badge status.");
+        }
+      } catch {
+        setError("Network error toggling badge status.");
+      }
+    });
+  }
+
+  async function handleResolveRequest(requestId: string, decision: "approve" | "reject") {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await resolveAccessRequestAction(code, requestId, decision);
+        if (res.ok) {
+          sfx(decision === "approve" ? "granted" : "denied");
+        } else {
+          setError(res.error ?? "Failed to process emergency request.");
+        }
+      } catch {
+        setError("Network error processing emergency request.");
+      }
+    });
+  }
+
+  const connected = snap.players.filter((p) => p.isConnected).length;
+  const total = snap.players.length;
+
+  // Pending emergency requests
+  const pendingRequests = (snap.accessRequests ?? []).filter((r) => r.status === "pending");
+
+  // Filtered audit logs
+  const auditLogs = (snap.auditLogs ?? []).filter((log) => {
+    if (auditFilter === "denials") return log.outcome === "DENIED";
+    if (auditFilter === "promotions") return log.outcome === "PROMOTED" || log.outcome === "DEMOTED";
+    if (auditFilter === "emergency")
+      return (
+        log.action === "EMERGENCY_REQUEST" ||
+        log.outcome === "EMERGENCY_APPROVED" ||
+        log.outcome === "EMERGENCY_REJECTED"
+      );
+    return true;
+  });
 
   return (
-    <main className="relative z-10 mx-auto max-w-[1600px] px-4 pb-16 pt-5 sm:px-6">
+    <main className="relative z-10 mx-auto max-w-[1700px] px-4 pb-16 pt-5 sm:px-6">
       {/* Top bar */}
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -129,6 +219,37 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Main Host Navigation Switcher */}
+          <div className="flex items-center rounded-xl bg-white/[0.04] p-1 ring-1 ring-white/10">
+            <button
+              onClick={() => setAdminTab("rbac")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition ${
+                adminTab === "rbac"
+                  ? "bg-cyan-glow/20 text-cyan-glow shadow-sm ring-1 ring-cyan-glow/40"
+                  : "text-ink-faint hover:text-white"
+              }`}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              RBAC Command Center
+              {pendingRequests.length > 0 && (
+                <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.2 text-[0.65rem] font-black text-black animate-pulse">
+                  {pendingRequests.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setAdminTab("scenarios")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition ${
+                adminTab === "scenarios"
+                  ? "bg-cyan-glow/20 text-cyan-glow shadow-sm ring-1 ring-cyan-glow/40"
+                  : "text-ink-faint hover:text-white"
+              }`}
+            >
+              <Radio className="h-3.5 w-3.5" />
+              Quiz Scenarios
+            </button>
+          </div>
+
           <ConnectionBadge state={connection} />
           <Toggle
             on={sound}
@@ -193,14 +314,9 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
         </div>
       )}
 
-      {snapshot && (
-        <div className="mt-4">
-          <RoundTrack current={snapshot.currentRound || 0} total={snapshot.totalRounds} />
-        </div>
-      )}
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)_340px]">
-        {/* ---------------- LEFT: join + controls ---------------- */}
+      {/* Main Grid */}
+      <div className="mt-4 grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
+        {/* ---------------- LEFT: QR + Room Controls ---------------- */}
         <div className="space-y-4">
           <Panel className="p-5">
             <SectionTitle icon={<Users className="h-3.5 w-3.5" />}>Join this room</SectionTitle>
@@ -218,78 +334,54 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
 
             <div className="mt-4 flex items-start gap-4">
               <div className="shrink-0">{qr}</div>
-              <div className="min-w-0 flex-1 space-y-3">
-                <p className="text-xs leading-relaxed text-ink-faint">
-                  Point a phone camera here. Students land straight on the join screen with the room
-                  code already filled in.
+              <div className="min-w-0 flex-1 space-y-2">
+                <p className="text-xs text-ink-dim leading-relaxed">
+                  Have students scan with any phone camera. Each student is automatically assigned one of 10 campus roles.
                 </p>
-                <button
-                  onClick={() => copy(joinUrl, "url")}
-                  title={joinUrl}
-                  className="flex w-full items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-2 text-left text-[0.7rem] text-ink-dim ring-1 ring-white/10 transition hover:bg-white/10"
-                >
-                  <span className="min-w-0 flex-1 truncate">
-                    {joinUrl.replace(/^https?:\/\//, "")}
-                  </span>
-                  {copied === "url" ? (
-                    <span className="shrink-0 text-[0.6rem] font-bold uppercase tracking-wider text-granted">
-                      copied
-                    </span>
-                  ) : (
-                    <Copy className="h-3 w-3 shrink-0 opacity-70" />
-                  )}
-                </button>
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <button
+                    onClick={() => copy(joinUrl, "join")}
+                    className="flex items-center gap-1.5 text-xs font-bold text-cyan-glow hover:underline"
+                  >
+                    <Copy className="h-3 w-3" />
+                    {copied === "join" ? "Copied direct link!" : "Copy mobile join link"}
+                  </button>
+                </div>
               </div>
             </div>
           </Panel>
 
+          {/* Session Lifecycle Controls */}
           <Panel className="p-5">
-            <SectionTitle>Controls</SectionTitle>
+            <SectionTitle icon={<Lock className="h-3.5 w-3.5" />}>Governance Session Controls</SectionTitle>
             <div className="space-y-2">
               {status === "waiting" && (
                 <Control
                   primary
                   icon={<Play className="h-4 w-4" />}
-                  label="Start round 1"
-                  hint={total === 0 ? "No players yet — starting anyway" : `${total} players ready`}
+                  label="Start game / scenarios"
+                  hint="opens Round 1"
                   disabled={pending}
                   onClick={() => run("start")}
                 />
               )}
 
-              {status === "countdown" && (
-                <Control
-                  primary
-                  icon={<Unlock className="h-4 w-4" />}
-                  label="Opening in a moment…"
-                  hint="players are pre-reading"
-                  disabled
-                />
-              )}
-
-              {(status === "active" || status === "countdown") && round?.status === "open" && (
+              {status === "active" && round?.status === "open" && (
                 <>
-                  {status === "active" ? (
-                    <Control
-                      icon={<Pause className="h-4 w-4" />}
-                      label="Pause voting"
-                      disabled={pending}
-                      onClick={() => run("pause")}
-                    />
-                  ) : null}
                   <Control
-                    icon={<Square className="h-4 w-4" />}
-                    label="Close voting now"
-                    hint="Use if the class has answered"
+                    icon={<Pause className="h-4 w-4" />}
+                    label="Pause timer"
+                    hint="freezes submissions"
                     disabled={pending}
-                    onClick={() => run("close")}
+                    onClick={() => run("pause")}
                   />
                   <Control
-                    icon={<RotateCcw className="h-4 w-4" />}
-                    label="Restart round"
-                    hint="Only while no votes are in"
-                    disabled={pending || (round?.tally.total ?? 0) > 0}
-                    onClick={() => run("restart")}
+                    danger
+                    icon={<Square className="h-4 w-4" />}
+                    label="Close voting early"
+                    hint="proceed to reveal"
+                    disabled={pending}
+                    onClick={() => run("close")}
                   />
                 </>
               )}
@@ -304,48 +396,29 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                 />
               )}
 
-              {(status === "active" || status === "paused") && !revealed && (
+              {round?.status === "closed" && !revealed && (
                 <Control
                   primary
                   icon={<Eye className="h-4 w-4" />}
-                  label="Reveal answer"
-                  hint="Scores are awarded now"
+                  label="Reveal answer & principles"
                   disabled={pending}
                   onClick={() => run("reveal")}
                 />
               )}
 
-              {status === "revealing" && revealed && (
+              {revealed && status !== "finished" && (
                 <Control
                   primary
-                  icon={
-                    snapshot && snapshot.currentRound >= snapshot.totalRounds ? (
-                      <Trophy className="h-4 w-4" />
-                    ) : (
-                      <FastForward className="h-4 w-4" />
-                    )
-                  }
+                  icon={<FastForward className="h-4 w-4" />}
                   label={
-                    snapshot && snapshot.currentRound >= snapshot.totalRounds
-                      ? "Finish & show podium"
-                      : `Next round (${(snapshot?.currentRound ?? 0) + 1})`
+                    snap.currentRound >= snap.totalRounds ? "Complete session" : "Next scenario"
                   }
                   disabled={pending}
                   onClick={() => run("next")}
                 />
               )}
 
-              {status !== "finished" && status !== "waiting" && (
-                <Control
-                  icon={<SkipForward className="h-4 w-4" />}
-                  label="Skip this scenario"
-                  hint="No points awarded"
-                  disabled={pending || status === "revealing"}
-                  onClick={() => run("skip")}
-                />
-              )}
-
-              {status !== "finished" && (
+              {status !== "waiting" && status !== "finished" && (
                 <Control
                   danger
                   icon={<CircleStop className="h-4 w-4" />}
@@ -356,147 +429,358 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                   }}
                 />
               )}
-
-              {status === "finished" && (
-                <Link
-                  href={`/results/${code}`}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-granted/12 px-4 py-3 font-bold text-granted ring-1 ring-granted/30 transition hover:bg-granted/20"
-                >
-                  <Trophy className="h-4 w-4" />
-                  Open final results
-                </Link>
-              )}
             </div>
 
             {pending && (
               <p className="mt-3 flex items-center gap-2 text-xs text-ink-faint">
-                <Loader2 className="h-3 w animate-spin" /> syncing with server…
-              </p>
-            )}
-          </Panel>
-          <Panel className="p-5">
-            <SectionTitle>Players</SectionTitle>
-            <div className="flex items-end justify-between">
-              <div>
-                <span className="tabular text-5xl font-black leading-none text-ink">{connected}</span>
-                <span className="ml-2 text-sm font-medium text-ink-faint">online</span>
-              </div>
-              <div className="text-right">
-                <span className="tabular text-xl font-bold text-ink-dim">{total}</span>
-                <p className="label">joined</p>
-              </div>
-            </div>
-
-            <div className="mt-4 max-h-44 space-y-1 overflow-y-auto pr-1">
-              {snapshot?.players.length === 0 ? (
-                <p className="py-6 text-center text-sm text-ink-faint">
-                  Nobody yet. Project the QR code and students can join from the door.
-                </p>
-              ) : (
-                snapshot?.players.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm"
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                        p.isConnected ? "bg-granted" : "bg-denied"
-                      }`}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-ink-dim">{p.nickname}</span>
-                    {p.isBot && (
-                      <span className="rounded bg-violet/15 px-1.5 text-[0.55rem] font-bold uppercase tracking-wider text-violet">
-                        demo
-                      </span>
-                    )}
-                    <span className="tabular text-xs font-bold text-ink-faint">{p.score}</span>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="mt-4">
-              <ResponseRate voted={round?.tally.total ?? 0} total={Math.max(1, total)} />
-            </div>
-          </Panel>
-
-        </div>
-
-        {/* ---------------- CENTRE: scenario + reveal ---------------- */}
-        <div className="space-y-4">
-          <Panel className="p-6 sm:p-7" glow={status === "active"}>
-            {snapshot?.scenario ? (
-              <ScenarioCard snapshot={snapshot} />
-            ) : (
-              <div className="py-10 text-center">
-                <p className="text-lg font-semibold text-ink-dim">
-                  Waiting for the host to start the first scenario.
-                </p>
-                <p className="mt-1 text-sm text-ink-faint">
-                  The audience screen is showing the lobby right now.
-                </p>
-              </div>
-            )}
-          </Panel>
-
-          <Panel className="p-6 sm:p-7">
-            {revealed && round?.reveal ? (
-              <RevealPanel reveal={round.reveal} />
-            ) : round?.status === "closed" ? (
-              <Suspense
-                votes={round?.tally.total ?? 0}
-                players={total}
-                onReveal={() => run("reveal")}
-                pending={pending}
-              />
-            ) : (
-              <div className="flex items-center gap-3 py-6 text-sm text-ink-faint">
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                Waiting for votes…
-              </div>
-            )}
-          </Panel>
-        </div>
-
-        {/* ---------------- RIGHT: tallies + leaderboard ---------------- */}
-        <div className="space-y-4">
-          <Panel className="p-5">
-            <SectionTitle>Live distribution</SectionTitle>
-            {snapshot ? (
-              <VoteBars snapshot={snapshot} />
-            ) : (
-              <p className="text-sm text-ink-faint">—</p>
-            )}
-            {msLeft !== null && round?.status === "open" && status !== "paused" && (
-              <p className="mt-4 border-t border-white/6 pt-3 text-center text-xs text-ink-faint">
-                <span className="tabular font-bold text-warn">{Math.ceil(msLeft / 1000)}s</span>{" "}
-                remaining on the server clock
-              </p>
-            )}
-            {status === "paused" && (
-              <p className="mt-4 border-t border-white/6 pt-3 text-center text-xs font-bold uppercase tracking-widest text-warn">
-                Paused
+                <Loader2 className="h-3 w-3 animate-spin" /> syncing with server…
               </p>
             )}
           </Panel>
 
+          {/* Quick links */}
           <Panel className="p-5">
-            <SectionTitle icon={<Trophy className="h-3.5 w-3.5" />}>Leaderboard</SectionTitle>
-            <Leaderboard players={snapshot?.leaderboard ?? []} limit={12} />
-          </Panel>
-
-          <Panel className="p-5">
-            <SectionTitle>Share</SectionTitle>
+            <SectionTitle>Display links</SectionTitle>
             <div className="space-y-2">
               <LinkRow href={screenUrl} label="Projector screen" icon={<MonitorUp className="h-3.5 w-3.5" />} />
-              <LinkRow href={playUrl} label="Player view" icon={<Users className="h-3.5 w-3.5" />} />
-              <LinkRow
-                href={`/results/${code}`}
-                label="Final results"
-                icon={<Trophy className="h-3.5 w-3.5" />}
-              />
+              <LinkRow href={playUrl} label="Student mobile view" icon={<Users className="h-3.5 w-3.5" />} />
+              <LinkRow href={`/results/${code}`} label="Final scores & audit" icon={<Trophy className="h-3.5 w-3.5" />} />
             </div>
           </Panel>
+        </div>
+
+        {/* ---------------- RIGHT: TABBED VIEW ---------------- */}
+        <div className="space-y-4">
+          {/* TAB 1: RBAC COMMAND CENTER */}
+          {adminTab === "rbac" && (
+            <>
+              {/* Emergency Access Requests Queue */}
+              <Panel className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="grid h-8 w-8 place-items-center rounded-lg bg-amber-500/20 text-amber-400">
+                      <ShieldAlert className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-bold text-white">Emergency Access Approvals</h2>
+                      <p className="text-xs text-ink-dim">
+                        Real-time privilege escalation petitions from students at campus doors
+                      </p>
+                    </div>
+                  </div>
+                  {pendingRequests.length > 0 && (
+                    <span className="flex items-center gap-1.5 rounded-full bg-amber-500/20 px-3 py-1 text-xs font-black text-amber-400 ring-1 ring-amber-500/40 animate-pulse">
+                      <span className="h-2 w-2 rounded-full bg-amber-400" />
+                      {pendingRequests.length} PENDING ACTION
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-4">
+                  {pendingRequests.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-white/10 p-6 text-center text-xs text-ink-faint">
+                      No pending emergency elevation requests. When students attempt to enter restricted doors without clearance, their petitions will stream here.
+                    </div>
+                  ) : (
+                    <div className="grid gap-3">
+                      {pendingRequests.map((req) => (
+                        <div
+                          key={req.id}
+                          className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-4 transition"
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white text-sm">{req.playerNickname}</span>
+                              <span className="rounded bg-white/10 px-2 py-0.5 text-[0.65rem] font-bold text-ink-dim">
+                                {req.playerRole}
+                              </span>
+                              <span className="text-xs text-ink-faint">wants entry to</span>
+                              <span className="rounded bg-cyan-glow/15 px-2 py-0.5 text-xs font-bold text-cyan-glow">
+                                {req.resourceName}
+                              </span>
+                            </div>
+                            <p className="mt-1.5 text-xs text-amber-200">
+                              <span className="font-bold text-amber-400">Reason:</span> &ldquo;{req.reason}&rdquo;
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleResolveRequest(req.id, "reject")}
+                              disabled={pending}
+                              className="flex items-center gap-1 rounded-xl bg-white/5 px-3 py-1.5 text-xs font-bold text-ink-dim ring-1 ring-white/10 hover:bg-denied/20 hover:text-denied"
+                            >
+                              <X className="h-3.5 w-3.5" /> Deny
+                            </button>
+                            <button
+                              onClick={() => handleResolveRequest(req.id, "approve")}
+                              disabled={pending}
+                              className="flex items-center gap-1.5 rounded-xl bg-granted/20 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-granted ring-1 ring-granted/40 hover:bg-granted/30 active:scale-95"
+                            >
+                              <Check className="h-3.5 w-3.5" /> Approve 60s Pass
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Panel>
+
+              {/* Campus Identity Matrix (Player Roster & Privilege Control) */}
+              <Panel className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="grid h-8 w-8 place-items-center rounded-lg bg-cyan-glow/20 text-cyan-glow">
+                      <IdCard className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-bold text-white">Campus Identity & RBAC Matrix</h2>
+                      <p className="text-xs text-ink-dim">
+                        Live connected students ({connected} online of {total} joined). Change roles or revoke credentials instantly.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-white/10 text-[0.68rem] uppercase tracking-wider text-ink-faint">
+                        <th className="pb-3 font-bold">Student / Identity</th>
+                        <th className="pb-3 font-bold">Current Assigned Role</th>
+                        <th className="pb-3 font-bold">Clearance</th>
+                        <th className="pb-3 font-bold">Badge Status</th>
+                        <th className="pb-3 font-bold">Promote / Demote</th>
+                        <th className="pb-3 font-bold text-right">Zero-Trust Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {snap.players.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-ink-faint">
+                            No students connected yet. Students scan the QR code to join and receive their initial role.
+                          </td>
+                        </tr>
+                      ) : (
+                        snap.players.map((player) => {
+                          const playerRole = getRole(player.roleId ?? "undergrad");
+                          const isRevoked = player.badgeStatus === "revoked";
+                          const grants = (player.temporaryGrants ?? []).filter((g) => g.expiresAt > Date.now());
+
+                          return (
+                            <tr
+                              key={player.id}
+                              className={`transition ${
+                                isRevoked ? "bg-denied/[0.05]" : "hover:bg-white/[0.02]"
+                              }`}
+                            >
+                              {/* Student name */}
+                              <td className="py-3">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`h-2 w-2 rounded-full ${
+                                      player.isConnected ? "bg-granted" : "bg-ink-faint"
+                                    }`}
+                                  />
+                                  <span className="font-bold text-white text-sm">{player.nickname}</span>
+                                  {player.isBot && (
+                                    <span className="rounded bg-violet/20 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase text-violet">
+                                      bot
+                                    </span>
+                                  )}
+                                </div>
+                                {grants.length > 0 && (
+                                  <span className="mt-1 inline-flex items-center gap-1 text-[0.65rem] font-bold text-amber-400">
+                                    <Zap className="h-3 w-3" /> Emergency Pass Active
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Role */}
+                              <td className="py-3 font-medium text-ink-dim">
+                                {playerRole.name}
+                              </td>
+
+                              {/* Clearance level */}
+                              <td className="py-3">
+                                <span className="rounded bg-white/10 px-2 py-0.5 text-[0.7rem] font-bold text-cyan-glow">
+                                  Level {playerRole.level}
+                                </span>
+                              </td>
+
+                              {/* Badge status */}
+                              <td className="py-3">
+                                {isRevoked ? (
+                                  <span className="inline-flex items-center gap-1 rounded bg-denied/20 px-2 py-0.5 text-[0.65rem] font-black uppercase tracking-wider text-denied ring-1 ring-denied/40">
+                                    <ShieldAlert className="h-3 w-3" /> Revoked
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded bg-granted/20 px-2 py-0.5 text-[0.65rem] font-black uppercase tracking-wider text-granted ring-1 ring-granted/40">
+                                    <ShieldCheck className="h-3 w-3" /> Active
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Role switcher dropdown */}
+                              <td className="py-3">
+                                <select
+                                  value={player.roleId ?? "undergrad"}
+                                  disabled={pending}
+                                  onChange={(e) => handleRoleChange(player.id, e.target.value)}
+                                  className="rounded-lg bg-black/60 px-2.5 py-1.5 text-xs text-white ring-1 ring-white/15 focus:outline-none focus:ring-2 focus:ring-cyan-glow"
+                                >
+                                  {CAMPUS_ROLES.map((r) => (
+                                    <option key={r.id} value={r.id} className="bg-neutral-900 text-white">
+                                      {r.name} (L{r.level})
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+
+                              {/* Revoke / Restore button */}
+                              <td className="py-3 text-right">
+                                <button
+                                  onClick={() => handleToggleRevocation(player.id)}
+                                  disabled={pending}
+                                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition active:scale-95 ${
+                                    isRevoked
+                                      ? "bg-granted/20 text-granted ring-1 ring-granted/40 hover:bg-granted/30"
+                                      : "bg-denied/20 text-denied ring-1 ring-denied/40 hover:bg-denied/30"
+                                  }`}
+                                >
+                                  {isRevoked ? "Restore Badge" : "Revoke Badge"}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Panel>
+
+              {/* Live SIEM Security Audit Terminal */}
+              <Panel className="p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 text-cyan-glow">
+                      <Terminal className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-bold text-white">Live SIEM Audit Terminal</h2>
+                      <p className="text-xs text-ink-dim">
+                        Authoritative append-only access control logging & policy evaluation trace
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Filter buttons */}
+                  <div className="flex items-center gap-1.5 rounded-lg bg-black/40 p-1 ring-1 ring-white/10 text-[0.65rem] font-bold uppercase">
+                    {(["all", "denials", "promotions", "emergency"] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setAuditFilter(f)}
+                        className={`rounded px-2.5 py-1 transition ${
+                          auditFilter === f ? "bg-cyan-glow/20 text-cyan-glow" : "text-ink-faint hover:text-white"
+                        }`}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4 max-h-72 overflow-y-auto rounded-xl bg-black/60 p-3.5 font-mono text-[0.72rem] leading-relaxed ring-1 ring-white/10">
+                  {auditLogs.length === 0 ? (
+                    <p className="text-center text-ink-faint py-4">No audit logs matching this filter.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {auditLogs.map((log) => {
+                        const time = new Date(log.timestamp).toLocaleTimeString();
+                        let outcomeColor = "text-granted";
+                        if (log.outcome === "DENIED" || log.outcome === "REVOKED" || log.outcome === "EMERGENCY_REJECTED") {
+                          outcomeColor = "text-denied";
+                        } else if (log.outcome === "PROMOTED" || log.outcome === "DEMOTED") {
+                          outcomeColor = "text-violet";
+                        } else if (log.outcome === "EMERGENCY_APPROVED") {
+                          outcomeColor = "text-amber-400";
+                        }
+
+                        return (
+                          <div key={log.id} className="flex items-start gap-2 border-b border-white/[0.04] pb-1">
+                            <span className="text-ink-faint shrink-0">[{time}]</span>
+                            <span className="text-cyan-glow font-bold shrink-0">{log.actor}:</span>
+                            <span className={`font-bold uppercase shrink-0 ${outcomeColor}`}>
+                              [{log.outcome}]
+                            </span>
+                            <span className="text-ink-dim flex-1">{log.detail}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </Panel>
+            </>
+          )}
+
+          {/* TAB 2: SCENARIOS / QUIZ (Retaining existing quiz mechanics) */}
+          {adminTab === "scenarios" && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-4">
+                <RoundTrack current={snap.currentRound || 0} total={snap.totalRounds} />
+                <Panel className="p-6" glow={status === "active"}>
+                  {snap.scenario ? (
+                    <ScenarioCard snapshot={snap} />
+                  ) : (
+                    <div className="py-10 text-center">
+                      <p className="text-lg font-semibold text-ink-dim">
+                        Start the game to display the first scenario.
+                      </p>
+                    </div>
+                  )}
+                </Panel>
+
+                <Panel className="p-6">
+                  {revealed && round?.reveal ? (
+                    <RevealPanel reveal={round.reveal} />
+                  ) : round?.status === "closed" ? (
+                    <Suspense
+                      votes={round?.tally.total ?? 0}
+                      players={total}
+                      onReveal={() => run("reveal")}
+                      pending={pending}
+                    />
+                  ) : (
+                    <div className="flex items-center gap-3 py-6 text-sm text-ink-faint">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Waiting for student votes…
+                    </div>
+                  )}
+                </Panel>
+              </div>
+
+              <div className="space-y-4">
+                <Panel className="p-5">
+                  <SectionTitle>Live distribution</SectionTitle>
+                  <VoteBars snapshot={snap} />
+                  {msLeft !== null && round?.status === "open" && status !== "paused" && (
+                    <p className="mt-4 border-t border-white/6 pt-3 text-center text-xs text-ink-faint">
+                      <span className="tabular font-bold text-warn">{Math.ceil(msLeft / 1000)}s</span>{" "}
+                      remaining on the clock
+                    </p>
+                  )}
+                </Panel>
+
+                <Panel className="p-5">
+                  <SectionTitle icon={<Trophy className="h-3.5 w-3.5" />}>Leaderboard</SectionTitle>
+                  <Leaderboard players={snap.leaderboard} limit={10} />
+                </Panel>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </main>

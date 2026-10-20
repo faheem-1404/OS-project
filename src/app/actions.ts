@@ -177,6 +177,78 @@ export async function heartbeatAction(code: string): Promise<ActionResult> {
   }
 }
 
+export async function attemptAccessAction(
+  code: string,
+  resourceId: string,
+): Promise<ActionResult<{ granted: boolean; reason: string }>> {
+  try {
+    const target = code.toUpperCase();
+    const token = await readPlayerToken(target);
+    if (!token) throw new GameError("Session not found. Please join again.", 401);
+    const result = await store().attemptAccess(target, token, resourceId);
+    return { ok: true, data: result };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function requestEmergencyAccessAction(
+  code: string,
+  resourceId: string,
+  reason: string,
+): Promise<ActionResult> {
+  try {
+    const target = code.toUpperCase();
+    const token = await readPlayerToken(target);
+    if (!token) throw new GameError("Session not found. Please join again.", 401);
+    await store().requestEmergencyAccess(target, token, resourceId, reason);
+    return { ok: true };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function updateUserRoleAction(
+  code: string,
+  playerId: string,
+  newRole: string,
+): Promise<ActionResult> {
+  try {
+    const hostToken = await requireHostToken(code);
+    await store().updateUserRole(code.toUpperCase(), hostToken, playerId, newRole);
+    return { ok: true };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function toggleUserRevocationAction(
+  code: string,
+  playerId: string,
+): Promise<ActionResult> {
+  try {
+    const hostToken = await requireHostToken(code);
+    await store().toggleUserRevocation(code.toUpperCase(), hostToken, playerId);
+    return { ok: true };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function resolveAccessRequestAction(
+  code: string,
+  requestId: string,
+  decision: "approve" | "reject",
+): Promise<ActionResult> {
+  try {
+    const hostToken = await requireHostToken(code);
+    await store().resolveAccessRequest(code.toUpperCase(), hostToken, requestId, decision);
+    return { ok: true };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* host bootstrap (join by code, proves ownership out of band)        */
 /* ------------------------------------------------------------------ */

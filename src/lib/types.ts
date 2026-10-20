@@ -38,6 +38,28 @@ export interface RevealPayload {
   principle: string;
 }
 
+export interface EmergencyAccessRequest {
+  id: string;
+  playerId: string;
+  playerNickname: string;
+  playerRole: string;
+  resourceId: string;
+  resourceName: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  requestedAt: number;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: number;
+  actor: string;
+  action: string;
+  targetResource?: string;
+  outcome: "GRANTED" | "DENIED" | "REVOKED" | "PROMOTED" | "DEMOTED" | "EMERGENCY_APPROVED" | "EMERGENCY_REJECTED";
+  detail: string;
+}
+
 export interface PlayerView {
   id: string;
   nickname: string;
@@ -45,6 +67,9 @@ export interface PlayerView {
   isBot: boolean;
   isConnected: boolean;
   joinedAt: string;
+  roleId: string;
+  badgeStatus: "active" | "revoked";
+  temporaryGrants: Array<{ resourceId: string; expiresAt: number }>;
 }
 
 export interface VoteTally {
@@ -82,8 +107,16 @@ export interface RoomSnapshot {
   scenario: PublicScenario | null;
   players: PlayerView[];
   leaderboard: PlayerView[];
+  accessRequests?: EmergencyAccessRequest[];
+  auditLogs?: AuditLogEntry[];
   /** Set by the API/SSE routes when the caller holds a valid player token. */
-  me?: { id: string; vote: MyVote | null } | null;
+  me?: {
+    id: string;
+    vote: MyVote | null;
+    roleId?: string;
+    badgeStatus?: "active" | "revoked";
+    temporaryGrants?: Array<{ resourceId: string; expiresAt: number }>;
+  } | null;
   /** Present only for the authenticated host. */
   isHost?: boolean;
 }
