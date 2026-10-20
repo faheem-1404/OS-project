@@ -53,6 +53,7 @@ export interface HostOps {
   updateUserRole(code: string, hostToken: string, playerId: string, newRole: string): Promise<void>;
   toggleUserRevocation(code: string, hostToken: string, playerId: string): Promise<void>;
   resolveAccessRequest(code: string, hostToken: string, requestId: string, decision: "approve" | "reject"): Promise<void>;
+  endGame(code: string, hostToken: string): Promise<void>;
 }
 
 export interface PlayerOps {

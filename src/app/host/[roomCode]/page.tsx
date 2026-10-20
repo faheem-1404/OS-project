@@ -86,7 +86,15 @@ export default async function HostRoomPage({
 
   const headerList = await headers();
   const hostHeader = headerList.get("x-forwarded-host") ?? headerList.get("host");
-  const proto = headerList.get("x-forwarded-proto") ?? "https";
+  const forwardedProto = headerList.get("x-forwarded-proto");
+  const isLocalHost =
+    !hostHeader ||
+    hostHeader.includes("localhost") ||
+    hostHeader.includes("127.0.0.1") ||
+    hostHeader.startsWith("192.168.") ||
+    hostHeader.startsWith("10.") ||
+    hostHeader.startsWith("172.");
+  const proto = forwardedProto ?? (isLocalHost ? "http" : "https");
   const detectedBase = hostHeader ? `${proto}://${hostHeader}` : null;
 
   const base =

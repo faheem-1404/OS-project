@@ -28,6 +28,7 @@ export async function GET(
 
   async function project() {
     const snap = await s.snapshot(target, { isHost });
+    if (!snap) return null;
     const mePlayer = playerId ? snap.players.find((p) => p.id === playerId) : null;
     snap.me = playerId
       ? {
