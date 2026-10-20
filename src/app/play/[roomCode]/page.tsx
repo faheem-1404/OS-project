@@ -32,7 +32,14 @@ export default async function PlayPage({
   // join flow. The room code alone never grants a player identity.
   if (!playerId) redirect(`/join?room=${code}`);
 
-  snapshot.me = { id: playerId, vote: token ? await s.myVote(code, token) : null };
+  const mePlayer = snapshot.players.find((p) => p.id === playerId);
+  snapshot.me = {
+    id: playerId,
+    vote: token ? await s.myVote(code, token) : null,
+    roleId: mePlayer?.roleId,
+    badgeStatus: mePlayer?.badgeStatus,
+    temporaryGrants: mePlayer?.temporaryGrants,
+  };
 
   return <PlayerView initial={snapshot} />;
 }
