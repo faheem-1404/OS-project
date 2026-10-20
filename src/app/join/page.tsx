@@ -2,7 +2,7 @@ import { JoinForm } from "@/components/join-form";
 
 // These routes read request-time state (cookies / live room data), so they
 // are rendered per request rather than prerendered at build time.
-export const instant = false;
+export const dynamic = "force-dynamic";
 
 export default async function JoinPage({
   searchParams,

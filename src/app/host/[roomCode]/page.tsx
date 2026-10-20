@@ -10,7 +10,7 @@ import { store } from "@/lib/server/store";
 
 // These routes read request-time state (cookies / live room data), so they
 // are rendered per request rather than prerendered at build time.
-export const instant = false;
+export const dynamic = "force-dynamic";
 
 export default async function HostRoomPage({
   params,
@@ -90,8 +90,8 @@ export default async function HostRoomPage({
   const detectedBase = hostHeader ? `${proto}://${hostHeader}` : null;
 
   const base =
-    process.env.NEXT_PUBLIC_APP_URL ??
     detectedBase ??
+    process.env.NEXT_PUBLIC_APP_URL ??
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
   const joinUrl = `${base}/join?room=${code}`;
 
