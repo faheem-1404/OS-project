@@ -100,49 +100,53 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
     reason: string;
   } | null>(null);
 
-  // Emergency request modal state
+  // Emergency access request modal state
   const [emergencyModalResource, setEmergencyModalResource] = useState<string | null>(null);
   const [emergencyReason, setEmergencyReason] = useState("");
   const [submittingEmergency, setSubmittingEmergency] = useState(false);
   const [emergencyNotice, setEmergencyNotice] = useState<string | null>(null);
 
+  // Countdown state
+  const [countdown, setCountdown] = useState<number | null>(null);
+
   const snap = snapshot ?? initial;
-  const round = snap.round;
-  const myVote = snap.me?.vote ?? null;
+  const round = snap.round ?? null;
   const revealed = round?.status === "revealed";
 
-  // Me identity
-  const mePlayer = snap.players.find((p) => p.id === snap.me?.id) ?? {
-    id: snap.me?.id ?? "local-user",
-    nickname: "Campus Member",
-    score: 0,
-    isBot: false,
-    isConnected: true,
-    joinedAt: new Date().toISOString(),
-    roleId: snap.me?.roleId ?? "undergrad",
-    badgeStatus: snap.me?.badgeStatus ?? "active",
-    temporaryGrants: snap.me?.temporaryGrants ?? [],
-    admissionStatus: snap.me?.admissionStatus ?? "approved",
-  };
+  // Current player from snapshot
+  const mePlayer = snap.me ? snap.players.find((p) => p.id === snap.me?.id) : null;
 
-  const role = getRole(mePlayer.roleId);
-  const isRevoked = mePlayer.badgeStatus === "revoked";
-  const now = Date.now();
-  const activeGrants = (mePlayer.temporaryGrants ?? []).filter((g) => g.expiresAt > now);
+  // Role info
+  const roleId = mePlayer?.roleId ?? "undergrad";
+  const role = getRole(roleId);
+  const isRevoked = mePlayer?.badgeStatus === "revoked";
+  const activeGrants = (mePlayer?.temporaryGrants ?? []).filter((g) => g.expiresAt > Date.now());
 
-  // Reset optimistic vote whenever round changes
+  // Player's vote this round
+  const myVote = snap.me?.vote;
+  const effectiveVote = myVote
+    ? { decision: myVote.decision, submittedAt: 0 }
+    : optimisticVote
+    ? { decision: optimisticVote, submittedAt: Date.now() }
+    : null;
+
+  // Clear optimistic vote on round change
+  const currentRoundIdx = snap.currentRound;
   useEffect(() => {
     setOptimisticVote(null);
-  }, [round?.roundIndex, snap.status]);
+    setError(null);
+    setScanResult(null);
+  }, [currentRoundIdx]);
 
-  const effectiveVote = myVote ?? (optimisticVote ? {
-    roundIndex: round?.roundIndex ?? 0,
-    decision: optimisticVote,
-    points: null,
-  } : null);
+  // Tick clock for temporary grants
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (activeGrants.length === 0) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [activeGrants.length]);
 
-  // 5-second pre-roll overlay
-  const [countdown, setCountdown] = useState<number | null>(null);
+  // Sync countdown
   useEffect(() => {
     if (snap.status !== "countdown" || !round?.openedAt) {
       setCountdown(null);
@@ -275,51 +279,51 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
   }
 
   /* -------------------- ADMISSION GATING SCREENS -------------------- */
-  if (mePlayer.admissionStatus === "pending") {
+  if (mePlayer?.admissionStatus === "pending") {
     return (
-      <main className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col justify-center px-5 py-12 text-center">
-        <div className="rounded-3xl border border-white/10 bg-panel p-8 shadow-2xl backdrop-blur-xl">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-glow/10 text-cyan-glow ring-1 ring-cyan-glow/30">
+      <main className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-12 text-center">
+        <div className="rounded-3xl border border-slate-200 bg-white p-7 shadow-lg">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-200">
             <Clock className="h-8 w-8 animate-pulse" />
           </div>
 
-          <span className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300 ring-1 ring-amber-500/30">
-            <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
-            Waiting for Host to Admit You
+          <span className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3.5 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
+            <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+            Waiting for Host Admission
           </span>
 
-          <h1 className="mt-4 text-2xl font-bold tracking-tight text-white">
-            Hi, {mePlayer.nickname}!
+          <h1 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">
+            Welcome, {mePlayer.nickname}!
           </h1>
 
-          <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-            Your admission request has been sent to the host. Please keep this screen open while the host approves your entry.
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            Your admission request has been sent to the lab host. Please keep this screen open while the host admits you into room <strong className="text-slate-900 font-mono font-bold">{snap.code}</strong>.
           </p>
 
-          <div className="mt-6 rounded-2xl bg-white/[0.03] p-4 text-left ring-1 ring-white/10 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-ink-faint">Room Code</span>
-              <span className="font-mono font-bold tracking-wider text-cyan-glow">{snap.code}</span>
+          <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-left border border-slate-200 space-y-2.5 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Session Room</span>
+              <span className="font-mono font-bold tracking-wider text-blue-600">{snap.code}</span>
             </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-ink-faint">Assigned Role</span>
-              <span className="font-bold text-white">{role.name} (Level {role.level})</span>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Assigned Student Role</span>
+              <span className="font-bold text-slate-900">{role.name} (Level {role.level})</span>
             </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-ink-faint">Status</span>
-              <span className="font-bold text-amber-300">Pending Host Admission</span>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Status</span>
+              <span className="font-bold text-amber-700">Waiting for Host Approval</span>
             </div>
           </div>
 
-          <p className="mt-5 text-xs text-ink-faint">
-            Once admitted, your campus pass and interactive doors will unlock automatically.
+          <p className="mt-5 text-xs text-slate-500">
+            Once admitted, your digital campus pass and door clearance will activate automatically.
           </p>
 
           <button
             onClick={leave}
-            className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-ink-dim hover:bg-white/10 hover:text-white transition"
+            className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-sm"
           >
-            <LogOut className="h-3.5 w-3.5" />
+            <LogOut className="h-3.5 w-3.5 text-slate-500" />
             Change Nickname / Cancel
           </button>
         </div>
@@ -327,25 +331,25 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
     );
   }
 
-  if (mePlayer.admissionStatus === "rejected") {
+  if (mePlayer?.admissionStatus === "rejected") {
     return (
-      <main className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col justify-center px-5 py-12 text-center">
-        <div className="rounded-3xl border border-denied/30 bg-panel p-8 shadow-2xl backdrop-blur-xl">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-denied/15 text-denied ring-1 ring-denied/30">
+      <main className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-12 text-center">
+        <div className="rounded-3xl border border-rose-200 bg-white p-7 shadow-lg">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-200">
             <ShieldAlert className="h-8 w-8" />
           </div>
 
-          <h1 className="mt-6 text-2xl font-bold tracking-tight text-white">
+          <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900">
             Admission Declined
           </h1>
 
-          <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-            The host declined this entry request for room <strong className="text-white">{snap.code}</strong>.
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            The host declined this entry request for room <strong className="text-slate-900 font-mono">{snap.code}</strong>.
           </p>
 
           <button
             onClick={leave}
-            className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
+            className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
           >
             Return to Join Screen
           </button>
@@ -354,21 +358,27 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
     );
   }
 
+  // Fallback for spectator or missing mePlayer
+  const displayName = mePlayer?.nickname ?? "Spectator";
+
   return (
     <>
       <CountdownOverlay value={countdown} />
 
-      <main className="relative z-10 mx-auto flex min-h-dvh max-w-xl flex-col px-4 pb-12 pt-5">
+      <main className="relative z-10 mx-auto flex min-h-dvh max-w-xl flex-col px-4 pb-14 pt-4">
         {/* Header */}
-        <header className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+        <header className="flex items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-2.5">
             <Logo compact />
             <div>
-              <p className="mono text-sm font-black tracking-[0.25em] text-cyan-glow">
-                {snap.code}
-              </p>
-              <p className="text-[0.6rem] uppercase tracking-[0.18em] text-ink-faint">
-                {snap.me?.id ? "campus credential active" : "spectating"}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[0.62rem] font-bold uppercase tracking-wider text-slate-400">Room</span>
+                <span className="font-mono text-sm font-black tracking-wider text-blue-600">
+                  {snap.code}
+                </span>
+              </div>
+              <p className="text-[0.65rem] font-semibold text-slate-500">
+                {snap.me?.id ? "Student Credential Active" : "Spectator Mode"}
               </p>
             </div>
           </div>
@@ -379,28 +389,28 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
         </header>
 
         {/* Tab switcher */}
-        <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl bg-white/[0.04] p-1.5 ring-1 ring-white/10">
+        <div className="mt-3.5 grid grid-cols-2 gap-2 rounded-2xl bg-slate-200/80 p-1.5">
           <button
             onClick={() => setActiveTab("arena")}
-            className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold uppercase tracking-wider transition ${
+            className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition shadow-sm ${
               activeTab === "arena"
-                ? "bg-cyan-glow/15 text-cyan-glow shadow-sm ring-1 ring-cyan-glow/30"
-                : "text-ink-faint hover:text-ink"
+                ? "bg-white text-blue-600"
+                : "bg-transparent text-slate-600 hover:text-slate-900 shadow-none"
             }`}
           >
             <IdCard className="h-4 w-4" />
-            My ID & Doors
+            My Campus Pass & Doors
           </button>
           <button
             onClick={() => setActiveTab("quiz")}
-            className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold uppercase tracking-wider transition ${
+            className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition shadow-sm ${
               activeTab === "quiz"
-                ? "bg-cyan-glow/15 text-cyan-glow shadow-sm ring-1 ring-cyan-glow/30"
-                : "text-ink-faint hover:text-ink"
+                ? "bg-white text-blue-600"
+                : "bg-transparent text-slate-600 hover:text-slate-900 shadow-none"
             }`}
           >
             <Radio className="h-4 w-4" />
-            Scenarios ({snap.totalRounds})
+            Interactive Scenarios ({snap.totalRounds})
           </button>
         </div>
 
@@ -412,9 +422,9 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
               exit={{ opacity: 0, height: 0 }}
               className="overflow-hidden"
             >
-              <div className="mt-3 flex items-center gap-2 rounded-xl bg-warn/10 px-4 py-2.5 text-sm text-warn ring-1 ring-warn/25">
-                <WifiOff className="h-4 w-4" />
-                Connection lost — retrying secure campus tunnel…
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800 border border-amber-200">
+                <WifiOff className="h-4 w-4 text-amber-600" />
+                Connection lost — retrying campus network connection…
               </div>
             </motion.div>
           )}
@@ -424,15 +434,15 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-cyan-glow/15 px-4 py-3 text-xs font-semibold text-cyan-glow ring-1 ring-cyan-glow/30"
+              className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-blue-50 px-4 py-3 text-xs font-semibold text-blue-800 border border-blue-200 shadow-sm"
             >
               <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 shrink-0 text-cyan-glow" />
+                <Sparkles className="h-4 w-4 shrink-0 text-blue-600" />
                 <span>{emergencyNotice}</span>
               </div>
               <button
                 onClick={() => setEmergencyNotice(null)}
-                className="text-cyan-glow/60 hover:text-cyan-glow text-xs"
+                className="text-blue-600 hover:text-blue-800 text-xs font-bold underline"
               >
                 Dismiss
               </button>
@@ -442,101 +452,119 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
 
         {/* -------------------- TAB 1: CAMPUS PASS & DOORS -------------------- */}
         {activeTab === "arena" && (
-          <div className="mt-4 space-y-4">
-            {/* Modern Campus ID Card */}
+          <div className="mt-3.5 space-y-4">
+            {/* Authentic University Student ID Card */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`relative overflow-hidden rounded-3xl border p-6 shadow-xl transition-all ${
+              className={`relative overflow-hidden rounded-2xl border shadow-md transition-all ${
                 isRevoked
-                  ? "border-denied/30 bg-gradient-to-br from-denied/10 via-panel to-panel"
-                  : "border-white/10 bg-gradient-to-br from-panel-2 via-panel to-panel"
+                  ? "border-rose-300 bg-white"
+                  : "border-slate-200 bg-white"
               }`}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3.5">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-glow/15 text-cyan-glow font-bold text-lg ring-1 ring-cyan-glow/30">
-                    {mePlayer.nickname.slice(0, 2).toUpperCase()}
+              {/* ID Card Top Band */}
+              <div className="flex items-center justify-between bg-slate-900 px-5 py-3 text-white">
+                <div className="flex items-center gap-2">
+                  <div className="grid h-6 w-6 place-items-center rounded bg-blue-600 text-white font-bold text-xs">
+                    U
                   </div>
-                  <div>
-                    <span className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-ink-faint">
-                      Digital Campus Pass
+                  <span className="text-[0.68rem] font-bold uppercase tracking-[0.15em] text-slate-200">
+                    Campus Digital Access Card
+                  </span>
+                </div>
+                <span className="font-mono text-xs font-bold text-blue-300">
+                  ID: #{snap.code}-{displayName.slice(0, 3).toUpperCase()}
+                </span>
+              </div>
+
+              {/* ID Card Body */}
+              <div className="p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3.5">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 text-blue-700 font-bold text-xl border border-blue-200 shadow-inner">
+                      {displayName.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                        {displayName}
+                      </h2>
+                      <p className="text-xs font-medium text-slate-500">
+                        Role: <span className="font-semibold text-slate-800">{role.name}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {isRevoked ? (
+                    <span className="flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 border border-rose-200">
+                      <ShieldAlert className="h-3.5 w-3.5" /> Suspended
                     </span>
-                    <h2 className="text-2xl font-bold tracking-tight text-white">
-                      {mePlayer.nickname}
-                    </h2>
-                  </div>
+                  ) : (
+                    <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Active Pass
+                    </span>
+                  )}
                 </div>
 
-                {isRevoked ? (
-                  <span className="flex items-center gap-1.5 rounded-full bg-denied/20 px-3 py-1 text-xs font-bold text-denied ring-1 ring-denied/40">
-                    <ShieldAlert className="h-3.5 w-3.5" /> Suspended
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1.5 rounded-full bg-granted/20 px-3 py-1 text-xs font-bold text-granted ring-1 ring-granted/40">
-                    <span className="h-2 w-2 rounded-full bg-granted animate-pulse" /> Active Pass
-                  </span>
+                {/* Role & clearance summary */}
+                <div className="mt-4 rounded-xl bg-slate-50 p-3.5 border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[0.65rem] font-bold uppercase tracking-wider text-slate-500">Clearance Level</p>
+                      <p className="font-bold text-slate-900 text-sm">Security Level {role.level} of 4</p>
+                    </div>
+                    <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 border border-blue-200">
+                      Level {role.level}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                    {role.description}
+                  </p>
+                </div>
+
+                {isRevoked && (
+                  <div className="mt-3.5 flex items-start gap-2.5 rounded-xl bg-rose-50 p-3.5 text-xs text-rose-800 border border-rose-200">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Pass Suspended by Host</p>
+                      <p className="text-[0.75rem] text-rose-700 mt-0.5">
+                        Your electronic door access has been temporarily revoked. All doors will report denied until the host restores your pass.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {activeGrants.length > 0 && (
+                  <div className="mt-3.5 rounded-xl bg-amber-50 p-3.5 border border-amber-200">
+                    <p className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                      <Zap className="h-3.5 w-3.5 text-amber-600" /> Temporary Door Key Active:
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {activeGrants.map((g) => {
+                        const sec = Math.max(0, Math.ceil((g.expiresAt - now) / 1000));
+                        return (
+                          <span
+                            key={g.resourceId}
+                            className="rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-amber-800 border border-amber-300 shadow-sm"
+                          >
+                            {CAMPUS_RESOURCES.find((r) => r.id === g.resourceId)?.name ?? g.resourceId} ({sec}s remaining)
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
               </div>
-
-              {/* Role & clearance summary */}
-              <div className="mt-5 rounded-2xl bg-black/40 p-4 ring-1 ring-white/5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-ink-faint">Assigned Role</p>
-                    <p className="font-bold text-white text-base">{role.name}</p>
-                  </div>
-                  <span className="rounded-xl bg-cyan-glow/15 px-3 py-1 text-xs font-bold text-cyan-glow ring-1 ring-cyan-glow/30">
-                    Clearance Level {role.level}
-                  </span>
-                </div>
-                <p className="mt-2 text-xs text-ink-dim leading-relaxed">
-                  {role.description}
-                </p>
-              </div>
-
-              {isRevoked && (
-                <div className="mt-3.5 flex items-start gap-2.5 rounded-xl bg-denied/15 p-3.5 text-xs text-denied ring-1 ring-denied/30">
-                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-bold">Pass Suspended by Host</p>
-                    <p className="text-[0.75rem] text-denied/90 mt-0.5">
-                      Your access has been temporarily turned off. All doors will remain locked until the host restores your badge.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {activeGrants.length > 0 && (
-                <div className="mt-3.5 rounded-xl bg-amber-500/15 p-3.5 ring-1 ring-amber-500/30">
-                  <p className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
-                    <Zap className="h-3.5 w-3.5" /> Temporary Door Key Active:
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap gap-2">
-                    {activeGrants.map((g) => {
-                      const sec = Math.max(0, Math.ceil((g.expiresAt - now) / 1000));
-                      return (
-                        <span
-                          key={g.resourceId}
-                          className="rounded-lg bg-black/50 px-2.5 py-1 text-xs font-bold text-amber-200 ring-1 ring-amber-500/40"
-                        >
-                          {CAMPUS_RESOURCES.find((r) => r.id === g.resourceId)?.name ?? g.resourceId} ({sec}s remaining)
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </motion.div>
 
-            {/* Campus Doors list */}
+            {/* Campus Doors & Facilities list */}
             <div>
               <div className="flex items-center justify-between px-1">
                 <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <DoorOpen className="h-4 w-4 text-cyan-glow" /> Campus Doors & Rooms
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <DoorOpen className="h-4 w-4 text-blue-600" /> Campus Doors & Rooms
                   </h3>
-                  <p className="text-xs text-ink-dim">Tap any door below to test your badge access</p>
+                  <p className="text-xs text-slate-500">Tap &ldquo;Tap Badge to Enter&rdquo; on any door to test your access</p>
                 </div>
               </div>
 
@@ -548,19 +576,19 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                   const isRolePermitted = role.allowedResources.includes(resource.id);
 
                   const hasPendingRequest = snap.accessRequests?.some(
-                    (r) => r.playerId === mePlayer.id && r.resourceId === resource.id && r.status === "pending"
+                    (r) => r.playerId === mePlayer?.id && r.resourceId === resource.id && r.status === "pending"
                   );
 
                   return (
                     <motion.div
                       key={resource.id}
                       layout
-                      className={`relative overflow-hidden rounded-2xl border p-4 transition ${
+                      className={`relative overflow-hidden rounded-2xl border p-4 transition shadow-sm ${
                         resultForThis?.granted
-                          ? "border-granted/50 bg-granted/[0.08]"
+                          ? "border-emerald-300 bg-emerald-50/70"
                           : resultForThis?.granted === false
-                          ? "border-denied/50 bg-denied/[0.08]"
-                          : "border-white/10 bg-panel hover:border-white/20"
+                          ? "border-rose-300 bg-rose-50/70"
+                          : "border-slate-200 bg-white hover:border-slate-300"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -568,27 +596,27 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                           <div
                             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                               resultForThis?.granted || (isRolePermitted && !isRevoked)
-                                ? "bg-cyan-glow/15 text-cyan-glow ring-1 ring-cyan-glow/30"
-                                : "bg-white/5 text-ink-dim ring-1 ring-white/10"
+                                ? "bg-blue-100 text-blue-700 border border-blue-200"
+                                : "bg-slate-100 text-slate-600 border border-slate-200"
                             }`}
                           >
                             <ResourceIcon id={resource.id} />
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <h4 className="text-sm font-bold text-white">{resource.name}</h4>
-                              <span className="rounded bg-white/10 px-2 py-0.5 text-[0.65rem] font-semibold text-ink-dim">
+                              <h4 className="text-sm font-bold text-slate-900">{resource.name}</h4>
+                              <span className="rounded bg-slate-100 px-2 py-0.5 text-[0.65rem] font-semibold text-slate-600">
                                 {resource.category}
                               </span>
                             </div>
-                            <p className="mt-1 text-xs text-ink-dim leading-relaxed">
+                            <p className="mt-1 text-xs text-slate-600 leading-relaxed">
                               {resource.description}
                             </p>
                           </div>
                         </div>
 
-                        <span className="shrink-0 rounded-lg bg-black/40 px-2.5 py-1 text-[0.65rem] font-bold text-ink-dim ring-1 ring-white/10">
-                          Requires L{resource.minLevel}
+                        <span className="shrink-0 rounded-lg bg-slate-100 px-2.5 py-1 text-[0.65rem] font-bold text-slate-600 border border-slate-200">
+                          Req L{resource.minLevel}
                         </span>
                       </div>
 
@@ -599,20 +627,20 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
                             exit={{ opacity: 0, height: 0 }}
-                            className={`mt-3 rounded-xl p-3 text-xs leading-relaxed ${
+                            className={`mt-3 rounded-xl p-3 text-xs leading-relaxed border ${
                               resultForThis.granted
-                                ? "bg-granted/20 text-granted ring-1 ring-granted/30"
-                                : "bg-denied/20 text-denied ring-1 ring-denied/30"
+                                ? "bg-emerald-100/90 text-emerald-900 border-emerald-300"
+                                : "bg-rose-100/90 text-rose-900 border-rose-300"
                             }`}
                           >
                             <div className="flex items-center gap-2 font-bold">
                               {resultForThis.granted ? (
                                 <>
-                                  <DoorOpen className="h-4 w-4" /> Door Unlocked • Access Granted
+                                  <DoorOpen className="h-4 w-4 text-emerald-700" /> Door Unlocked • Access Granted
                                 </>
                               ) : (
                                 <>
-                                  <DoorClosed className="h-4 w-4" /> Locked • Access Denied
+                                  <DoorClosed className="h-4 w-4 text-rose-700" /> Door Locked • Access Denied
                                 </>
                               )}
                             </div>
@@ -622,11 +650,11 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                       </AnimatePresence>
 
                       {/* Action Bar */}
-                      <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-white/5 pt-3">
+                      <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
                         <button
                           onClick={() => handleSwipeDoor(resource.id)}
                           disabled={isScanning}
-                          className="flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-xs font-bold text-white transition hover:bg-white/15 active:scale-95 disabled:opacity-50"
+                          className="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-95 disabled:opacity-50"
                         >
                           {isScanning ? (
                             <>
@@ -634,15 +662,15 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                             </>
                           ) : (
                             <>
-                              <IdCard className="h-3.5 w-3.5 text-cyan-glow" /> Tap Badge to Enter
+                              <IdCard className="h-3.5 w-3.5 text-blue-400" /> Tap Badge to Enter
                             </>
                           )}
                         </button>
 
                         {!isRolePermitted && !hasEmergencyGrant && (
                           hasPendingRequest ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-300 ring-1 ring-amber-500/25">
-                              <Hourglass className="h-3.5 w-3.5 animate-spin" /> Request Pending
+                            <span className="inline-flex items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 border border-amber-200">
+                              <Hourglass className="h-3.5 w-3.5 text-amber-600 animate-spin" /> Request Pending
                             </span>
                           ) : (
                             <button
@@ -650,9 +678,9 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                                 setEmergencyModalResource(resource.id);
                                 setEmergencyReason("");
                               }}
-                              className="flex items-center gap-1.5 rounded-xl bg-amber-500/15 px-3 py-1.5 text-xs font-bold text-amber-300 ring-1 ring-amber-500/30 hover:bg-amber-500/25 transition"
+                              className="flex items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 border border-amber-200 hover:bg-amber-100 transition shadow-sm"
                             >
-                              <Key className="h-3.5 w-3.5" /> Request Door Key
+                              <Key className="h-3.5 w-3.5 text-amber-600" /> Request Door Key
                             </button>
                           )
                         )}
@@ -667,25 +695,27 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
 
         {/* -------------------- TAB 2: SCENARIOS (QUIZ) -------------------- */}
         {activeTab === "quiz" && (
-          <div className="mt-4 space-y-4">
+          <div className="mt-3.5 space-y-4">
             <RoundTrack current={snap.currentRound || 0} total={snap.totalRounds} />
 
             {/* Lobby */}
             {snap.status === "waiting" && (
-              <Panel className="p-6 text-center" glow>
+              <Panel className="p-7 text-center bg-white border border-slate-200 shadow-sm" glow>
                 <motion.div
                   animate={{ scale: [1, 1.03, 1] }}
                   transition={{ duration: 2.4, repeat: Infinity }}
-                  className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-cyan-glow/10 ring-1 ring-cyan-glow/30"
+                  className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-200"
                 >
-                  <Radio className="h-7 w-7 text-cyan-glow" />
+                  <Radio className="h-7 w-7 text-blue-600" />
                 </motion.div>
-                <h1 className="mt-5 text-2xl font-black tracking-tight">You&apos;re in the lobby</h1>
-                <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-                  Keep this page open. The governance scenario will appear here for everyone when the host opens the round.
+                <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900">
+                  You&apos;re in the Lobby
+                </h1>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                  Keep this tab open. Interactive RBAC scenarios will appear here for the class when the host starts the session.
                 </p>
                 <div className="mt-6 flex items-center justify-center gap-6">
-                  <Stat icon={<Users className="h-4 w-4" />} value={snap.players.length} label="players" />
+                  <Stat icon={<Users className="h-4 w-4" />} value={snap.players.length} label="connected" />
                   <Stat icon={<Radio className="h-4 w-4" />} value={snap.totalRounds} label="scenarios" />
                 </div>
               </Panel>
@@ -693,9 +723,9 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
 
             {/* Waiting between rounds */}
             {snap.status === "revealing" && revealed && (
-              <Panel className="flex items-center gap-3 px-4 py-3">
-                <Hourglass className="h-4 w-4 shrink-0 text-ink-faint" />
-                <p className="text-sm text-ink-dim">
+              <Panel className="flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 shadow-sm">
+                <Hourglass className="h-4 w-4 shrink-0 text-slate-400" />
+                <p className="text-sm text-slate-600">
                   Next scenario begins when the host advances.
                 </p>
               </Panel>
@@ -704,12 +734,12 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
             {/* Scenario */}
             {snap.scenario && snap.status !== "waiting" && (
               <>
-                <Panel className="p-5" glow={snap.status === "active"}>
+                <Panel className="p-6 bg-white border border-slate-200 shadow-sm" glow={snap.status === "active"}>
                   <ScenarioCard snapshot={snap} />
                 </Panel>
 
                 {/* Decision */}
-                <Panel className="p-5">
+                <Panel className="p-6 bg-white border border-slate-200 shadow-sm">
                   {revealed ? (
                     <div className="space-y-4">
                       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -718,21 +748,21 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                           <span
                             className={`rounded-lg px-3 py-1 text-sm font-bold tracking-wider ${
                               myVote.decision === "APPROVE"
-                                ? "bg-granted/12 text-granted ring-1 ring-granted/25"
-                                : "bg-denied/12 text-denied ring-1 ring-denied/25"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-rose-50 text-rose-700 border border-rose-200"
                             }`}
                           >
                             {myVote.decision}
                           </span>
                         ) : (
-                          <span className="text-sm text-ink-faint">No answer</span>
+                          <span className="text-sm text-slate-400">No answer</span>
                         )}
                       </div>
                       <div className="flex justify-center py-1">
                         {myVote?.points !== null && myVote?.points !== undefined ? (
                           <PointsBadge points={myVote.points} />
                         ) : (
-                          <span className="text-sm text-ink-faint">No points this round</span>
+                          <span className="text-sm text-slate-400">No points this round</span>
                         )}
                       </div>
                       <RevealPanel reveal={round?.reveal ?? null} />
@@ -743,10 +773,10 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                       animate={{ opacity: 1, scale: 1 }}
                       className="py-4 text-center"
                     >
-                      <CheckCircle2 className="mx-auto h-12 w-12 text-granted" />
-                      <p className="mt-3 text-lg font-bold">Decision locked in</p>
-                      <p className="mt-1 text-sm text-ink-dim">
-                        You voted <span className="font-bold text-ink">{effectiveVote.decision}</span>. The host will reveal results shortly.
+                      <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
+                      <p className="mt-3 text-lg font-bold text-slate-900">Decision locked in</p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        You voted <span className="font-bold text-slate-900">{effectiveVote.decision}</span>. Host will reveal results shortly.
                       </p>
                     </motion.div>
                   ) : (
@@ -754,7 +784,7 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                       <div className="flex items-center justify-between">
                         <span className="label">Your evaluation</span>
                         {msLeft !== null && (
-                          <span className="tabular text-sm font-bold text-warn">
+                          <span className="tabular text-sm font-bold text-amber-700">
                             {Math.ceil(msLeft / 1000)}s
                           </span>
                         )}
@@ -766,18 +796,18 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                         onChoose={choose}
                       />
                       {snap.status === "countdown" && (
-                        <p className="text-center text-sm text-ink-faint">
+                        <p className="text-center text-sm text-slate-500">
                           Hold on — voting opens in a moment.
                         </p>
                       )}
                       {snap.status === "paused" && (
-                        <p className="text-center text-sm font-bold uppercase tracking-widest text-warn">
+                        <p className="text-center text-sm font-bold uppercase tracking-widest text-amber-700">
                           Host paused the round
                         </p>
                       )}
                       {(submitting || pending) && (
-                        <p className="flex items-center justify-center gap-2 text-xs text-ink-faint">
-                          <Send className="h-3 w-3 animate-pulse" /> recording…
+                        <p className="flex items-center justify-center gap-2 text-xs text-slate-500">
+                          <Send className="h-3 w-3 animate-pulse text-blue-600" /> recording…
                         </p>
                       )}
                     </div>
@@ -793,15 +823,15 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
 
             {/* Live feedback */}
             {snap.status === "active" && round?.status === "open" && (
-              <Panel className="p-5">
-                <SectionTitle>Live room voting</SectionTitle>
+              <Panel className="p-5 bg-white border border-slate-200 shadow-sm">
+                <SectionTitle>Live Room Voting</SectionTitle>
                 <VoteBars snapshot={snap} />
               </Panel>
             )}
 
             {/* Leaderboard */}
-            <Panel className="p-5">
-              <SectionTitle icon={<Trophy className="h-3.5 w-3.5" />}>Leaderboard</SectionTitle>
+            <Panel className="p-5 bg-white border border-slate-200 shadow-sm">
+              <SectionTitle icon={<Trophy className="h-3.5 w-3.5 text-amber-500" />}>Leaderboard</SectionTitle>
               <Leaderboard players={snap.leaderboard} limit={8} highlightId={snap.me?.id ?? null} />
             </Panel>
           </div>
@@ -810,31 +840,31 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
         {/* Emergency Elevation Modal */}
         <AnimatePresence>
           {emergencyModalResource && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
               <motion.div
                 initial={{ opacity: 0, scale: 0.94 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.94 }}
-                className="w-full max-w-md rounded-2xl border border-white/15 bg-neutral-900 p-6 shadow-2xl"
+                className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
               >
                 <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-xl bg-amber-500/20 text-amber-400">
+                  <div className="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-600 border border-amber-200">
                     <ShieldAlert className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-white text-base">Request Door Key</h3>
-                    <p className="text-xs text-ink-dim">
+                    <h3 className="font-bold text-slate-900 text-base">Request Door Key</h3>
+                    <p className="text-xs text-slate-500">
                       Room: {CAMPUS_RESOURCES.find((r) => r.id === emergencyModalResource)?.name}
                     </p>
                   </div>
                 </div>
 
-                <p className="mt-3 text-xs leading-relaxed text-ink-dim">
-                  Your current role ({role.name}) does not have standard clearance for this room. Send a quick note to the host to request a 60-second access key.
+                <p className="mt-3 text-xs leading-relaxed text-slate-600">
+                  Your role ({role.name}) does not have standard clearance for this room. Submit a note to request a temporary 60-second door key from the host.
                 </p>
 
                 <div className="mt-4">
-                  <label className="text-[0.7rem] font-bold uppercase tracking-wider text-ink-faint">
+                  <label className="text-[0.7rem] font-bold uppercase tracking-wider text-slate-500">
                     Reason for entry
                   </label>
                   <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
@@ -848,10 +878,10 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                         key={reason}
                         type="button"
                         onClick={() => setEmergencyReason(reason)}
-                        className={`rounded-xl p-2.5 text-left transition ${
+                        className={`rounded-xl p-2.5 text-left transition border ${
                           emergencyReason === reason
-                            ? "bg-cyan-glow/20 text-cyan-glow ring-1 ring-cyan-glow/40"
-                            : "bg-white/5 text-ink-dim hover:bg-white/10"
+                            ? "bg-blue-50 text-blue-700 border-blue-300 font-semibold"
+                            : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
                         }`}
                       >
                         {reason}
@@ -864,7 +894,7 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                     value={emergencyReason}
                     onChange={(e) => setEmergencyReason(e.target.value)}
                     placeholder="Or type a custom note to the host…"
-                    className="mt-3 w-full rounded-xl bg-black/50 px-3.5 py-2.5 text-xs text-white placeholder-ink-faint ring-1 border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-glow"
+                    className="mt-3 w-full rounded-xl bg-white px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
                   />
                 </div>
 
@@ -872,14 +902,14 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                   <button
                     onClick={() => setEmergencyModalResource(null)}
                     disabled={submittingEmergency}
-                    className="rounded-xl px-4 py-2 text-xs font-semibold text-ink-dim hover:text-white"
+                    className="rounded-xl px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={submitEmergencyRequest}
                     disabled={submittingEmergency}
-                    className="flex items-center gap-1.5 rounded-xl bg-cyan-glow/20 px-5 py-2 text-xs font-bold uppercase tracking-wider text-cyan-glow ring-1 ring-cyan-glow/40 hover:bg-cyan-glow/30 active:scale-95 transition"
+                    className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition"
                   >
                     {submittingEmergency ? (
                       <>
@@ -899,7 +929,7 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
 
         <button
           onClick={leave}
-          className="mx-auto mt-8 inline-flex items-center gap-1.5 text-xs font-semibold text-ink-faint transition hover:text-denied"
+          className="mx-auto mt-8 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition hover:text-rose-600"
         >
           <LogOut className="h-3.5 w-3.5" />
           Leave this room
@@ -920,11 +950,11 @@ function Stat({
 }) {
   return (
     <div>
-      <div className="flex items-center justify-center gap-1.5 text-ink-dim">
+      <div className="flex items-center justify-center gap-1.5 text-slate-500">
         {icon}
-        <span className="tabular text-2xl font-black text-ink">{value}</span>
+        <span className="tabular text-2xl font-black text-slate-900">{value}</span>
       </div>
-      <p className="label mt-0.5">{label}</p>
+      <p className="label mt-0.5 text-slate-400">{label}</p>
     </div>
   );
 }

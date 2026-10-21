@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, Loader2, Search, UserRound } from "lucide-react";
+import { ArrowRight, Check, Loader2, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
@@ -53,7 +53,7 @@ export function JoinForm({
       } catch {
         if (!cancelled) {
           setRoom(null);
-          setError("No active room with that code.");
+          setError("No active room found with that code.");
         }
       } finally {
         if (!cancelled) setChecking(false);
@@ -69,12 +69,12 @@ export function JoinForm({
     if (e) e.preventDefault();
     const cleanNick = (nicknameRef.current?.value ?? "").trim();
     if (!cleanNick) {
-      setError("Please choose a nickname.");
+      setError("Please choose your student name or nickname.");
       nicknameRef.current?.focus();
       return;
     }
     if (!code || code.length < 4) {
-      setError("Please enter a room code.");
+      setError("Please enter a valid room code.");
       return;
     }
 
@@ -82,7 +82,7 @@ export function JoinForm({
     startTransition(async () => {
       const res = await joinRoomAction(code, cleanNick);
       if (!res.ok || !res.data) {
-        setError(res.error ?? "Could not join.");
+        setError(res.error ?? "Could not join this room.");
         return;
       }
       router.push(`/play/${res.data.code}`);
@@ -100,17 +100,21 @@ export function JoinForm({
 
         <div className="flex flex-1 flex-col justify-center py-10">
           <div>
-            <p className="label">CampusLock</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight">Join the session</h1>
-            <p className="mt-2 text-sm leading-relaxed text-ink-dim">
-              No account, no email. Just a nickname for the leaderboard.
+            <span className="inline-block rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-700/10">
+              Campus Access Pass
+            </span>
+            <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900">
+              Join Session
+            </h1>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              Enter the session room code and your name to receive your campus digital pass.
             </p>
 
             <form onSubmit={join}>
-              <Panel className="mt-7 space-y-5 p-6">
+              <Panel className="mt-6 space-y-5 p-6 shadow-sm border border-slate-200 bg-white">
                 <div>
-                  <label htmlFor="code" className="label">
-                    Room code
+                  <label htmlFor="code" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Room Code
                   </label>
                   <div className="relative mt-1.5">
                     <input
@@ -128,50 +132,50 @@ export function JoinForm({
                       autoComplete="off"
                       spellCheck={false}
                       maxLength={6}
-                      placeholder="XXXXXX"
-                      className="mono w-full rounded-xl bg-black/40 px-4 py-4 text-center text-3xl font-black tracking-[0.35em] text-ink ring-1 ring-white/10 outline-none transition focus:ring-cyan-glow/50"
+                      placeholder="e.g. 529EUJ"
+                      className="mono w-full rounded-xl bg-slate-50 border border-slate-200 px-4 py-3.5 text-center text-3xl font-extrabold tracking-[0.25em] text-slate-900 outline-none transition focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                     />
                     {checking && (
-                      <Loader2 className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-cyan-glow" />
+                      <Loader2 className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 animate-spin text-blue-600" />
                     )}
                     {!checking && room && (
-                      <Check className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-granted" />
+                      <Check className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-600" />
                     )}
                   </div>
                 </div>
 
                 {room && (
-                  <div className="overflow-hidden transition-all duration-300">
-                    <div className="flex items-center justify-between rounded-xl bg-white/[0.04] px-4 py-3 ring-1 ring-white/8">
-                      <div>
-                        <p className="label">Room status</p>
-                        <p className="text-sm font-bold capitalize text-ink">{room.status}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="label">Players</p>
-                        <p className="tabular text-sm font-bold text-ink">{room.players.length}</p>
-                      </div>
+                  <div className="rounded-xl bg-blue-50/70 border border-blue-100 p-3.5 text-xs text-blue-900">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold">Session Status</span>
+                      <span className="rounded-md bg-white px-2 py-0.5 font-bold uppercase tracking-wider text-blue-700 shadow-2xs">
+                        {room.status}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <span className="text-blue-700/80">Students Joined</span>
+                      <span className="font-bold text-blue-950">{room.players.length} online</span>
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <label htmlFor="nick" className="label">
-                    Your nickname
+                  <label htmlFor="nick" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Your Name or Nickname
                   </label>
                   <div className="relative mt-1.5">
-                    <UserRound className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+                    <UserRound className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <input
                       id="nick"
                       ref={nicknameRef}
                       maxLength={24}
                       autoComplete="nickname"
-                      placeholder="e.g. Ada"
-                      className="w-full rounded-xl bg-black/40 py-3.5 pl-11 pr-4 text-base font-semibold text-ink ring-1 ring-white/10 outline-none transition focus:ring-cyan-glow/50"
+                      placeholder="e.g. Alex Chen"
+                      className="w-full rounded-xl bg-slate-50 border border-slate-200 py-3 pl-10 pr-4 text-sm font-semibold text-slate-900 outline-none transition focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                     />
                   </div>
-                  <p className="mt-1.5 text-[0.7rem] text-ink-faint">
-                    Shown on the leaderboard. Nothing else is collected.
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    This will appear on your campus pass and on the session leaderboard.
                   </p>
                 </div>
 
@@ -180,24 +184,28 @@ export function JoinForm({
                 <button
                   type="submit"
                   disabled={!canSubmit}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-glow py-4 font-bold text-void transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-98 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                  Join room
+                  {pending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Connecting…
+                    </>
+                  ) : (
+                    <>
+                      Join Session
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
                 </button>
 
                 {isFinished && (
-                  <p className="text-center text-sm text-denied">
-                    This session has ended. Ask the host for a new room.
+                  <p className="text-center text-xs text-red-600 font-medium">
+                    This room session has already concluded.
                   </p>
                 )}
               </Panel>
             </form>
-
-            <p className="mt-6 flex items-center justify-center gap-2 text-xs text-ink-faint">
-              <Search className="h-3.5 w-3.5" />
-              Scanned the QR at the door? The room code is already filled in.
-            </p>
           </div>
         </div>
       </main>

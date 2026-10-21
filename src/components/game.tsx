@@ -16,18 +16,18 @@ import { Meter } from "@/components/ui";
 export function ConnectionBadge({ state }: { state: ConnectionState }) {
   const tone =
     state === "live"
-      ? "text-granted ring-granted/30 bg-granted/10"
+      ? "text-emerald-700 border-emerald-200 bg-emerald-50"
       : state === "connecting"
-        ? "text-ink-dim ring-white/10 bg-white/5"
-        : "text-denied ring-denied/30 bg-denied/10";
+        ? "text-slate-600 border-slate-200 bg-slate-50"
+        : "text-rose-700 border-rose-200 bg-rose-50";
   const text =
     state === "live" ? "Live" : state === "connecting" ? "Connecting" : "Reconnecting";
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[0.65rem] font-bold uppercase tracking-[0.16em] ring-1 ${tone}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-wider border ${tone}`}
     >
       {state === "live" ? (
-        <span className="pulse-dot bg-granted" />
+        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
       ) : (
         <WifiOff className="h-3 w-3" />
       )}
@@ -66,7 +66,7 @@ export function TimerRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="rgba(255,255,255,0.08)"
+          stroke="#e2e8f0"
           strokeWidth={stroke}
         />
         <circle
@@ -74,7 +74,7 @@ export function TimerRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={urgent ? "var(--color-denied)" : "var(--color-cyan-glow)"}
+          stroke={urgent ? "#dc2626" : "#2563eb"}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -86,13 +86,13 @@ export function TimerRing({
       </svg>
       <div className="absolute inset-0 grid place-items-center">
         {seconds === null ? (
-          <span className="label">—</span>
+          <span className="label text-slate-400">—</span>
         ) : (
           <motion.span
             key={urgent ? "urgent" : "calm"}
             animate={urgent && !reducedMotion ? { scale: [1, 1.12, 1] } : {}}
             transition={{ duration: 0.5, repeat: urgent ? Infinity : 0 }}
-            className={`tabular text-4xl font-bold ${urgent ? "text-denied" : "text-ink"}`}
+            className={`tabular text-4xl font-bold ${urgent ? "text-rose-600" : "text-slate-900"}`}
           >
             {seconds}
           </motion.span>
@@ -118,35 +118,35 @@ export function ScenarioCard({
   const lg = size === "lg";
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-md bg-cyan-glow/10 px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-[0.16em] text-cyan-glow ring-1 ring-cyan-glow/25">
+        <span className="rounded-md bg-blue-50 px-2.5 py-1 text-[0.68rem] font-bold uppercase tracking-wider text-blue-700 border border-blue-200">
           Round {s.roundIndex} / {snapshot.totalRounds}
         </span>
-        <span className="rounded-md bg-white/5 px-2.5 py-1 text-[0.65rem] font-medium text-ink-dim ring-1 ring-white/10">
+        <span className="rounded-md bg-slate-100 px-2.5 py-1 text-[0.68rem] font-semibold text-slate-700 border border-slate-200">
           {snapshot.round?.status ?? "pending"}
         </span>
       </div>
 
       <h1
-        className={`font-bold leading-[1.08] tracking-tight text-ink ${lg ? "text-4xl sm:text-5xl lg:text-6xl" : "text-2xl sm:text-3xl"}`}
+        className={`font-bold leading-[1.12] tracking-tight text-slate-900 ${lg ? "text-4xl sm:text-5xl lg:text-6xl" : "text-2xl sm:text-3xl"}`}
       >
         {s.title}
       </h1>
 
-      <p className={`leading-relaxed text-ink-dim ${lg ? "text-2xl leading-relaxed" : "text-base"}`}>
+      <p className={`leading-relaxed text-slate-600 ${lg ? "text-2xl leading-relaxed" : "text-sm sm:text-base"}`}>
         {s.description}
       </p>
 
       <dl className="grid gap-3 sm:grid-cols-3">
         {[
-          { k: "Resource", v: s.resourceType },
-          { k: "Requester role", v: s.requesterRole },
-          { k: "Request", v: s.accessRequest },
+          { k: "Campus Resource", v: s.resourceType },
+          { k: "Requester Role", v: s.requesterRole },
+          { k: "Access Request", v: s.accessRequest },
         ].map((item) => (
-          <div key={item.k} className="panel-tight px-3.5 py-3">
-            <dt className="label">{item.k}</dt>
-            <dd className={`mt-1 font-semibold text-ink ${lg ? "text-lg" : "text-sm"}`}>{item.v}</dd>
+          <div key={item.k} className="rounded-xl bg-slate-50 p-3.5 border border-slate-200 shadow-xs">
+            <dt className="text-[0.65rem] font-bold uppercase tracking-wider text-slate-500">{item.k}</dt>
+            <dd className={`mt-1 font-semibold text-slate-900 ${lg ? "text-lg" : "text-sm"}`}>{item.v}</dd>
           </div>
         ))}
       </dl>
@@ -172,10 +172,10 @@ export function VoteBars({
   return (
     <div className="space-y-4">
       <div className="flex items-end justify-between">
-        <span className="label">Votes cast</span>
-        <span className="tabular text-2xl font-bold text-ink">
+        <span className="text-[0.7rem] font-bold uppercase tracking-wider text-slate-500">Votes Cast</span>
+        <span className="tabular text-2xl font-bold text-slate-900">
           {tally.total}
-          <span className="text-sm font-medium text-ink-faint"> / {snapshot.players.length}</span>
+          <span className="text-sm font-medium text-slate-400"> / {snapshot.players.length}</span>
         </span>
       </div>
 
@@ -207,24 +207,25 @@ function VoteBar({
   big?: boolean;
 }) {
   const pct = (count / total) * 100;
-  const color = tone === "granted" ? "var(--color-granted)" : "var(--color-denied)";
+  const isGrant = tone === "granted";
+  const textColor = isGrant ? "text-emerald-700" : "text-rose-700";
+  const barBg = isGrant ? "bg-emerald-600" : "bg-rose-600";
+
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
         <span
-          className={`font-bold tracking-[0.18em] ${big ? "text-2xl" : "text-sm"}`}
-          style={{ color }}
+          className={`font-bold tracking-wider ${big ? "text-2xl" : "text-sm"} ${textColor}`}
         >
           {label}
         </span>
-        <span className={`tabular font-bold ${big ? "text-3xl" : "text-lg"}`} style={{ color }}>
-          {count}
+        <span className={`tabular font-bold ${big ? "text-3xl" : "text-lg"} ${textColor}`}>
+          {count} ({Math.round(pct)}%)
         </span>
       </div>
-      <div className={`w-full overflow-hidden rounded-full bg-white/8 ${big ? "h-8" : "h-3"}`}>
+      <div className={`w-full overflow-hidden rounded-full bg-slate-100 border border-slate-200 ${big ? "h-7" : "h-3"}`}>
         <motion.div
-          className="h-full rounded-full"
-          style={{ backgroundColor: color }}
+          className={`h-full rounded-full ${barBg}`}
           initial={false}
           animate={{ width: `${pct}%` }}
           transition={{ type: "spring", stiffness: 120, damping: 20 }}
@@ -251,39 +252,43 @@ export function RevealPanel({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 18 }}
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className={`space-y-4 ${granted ? "" : ""}`}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className="space-y-3.5"
     >
       <div
-        className={`flex items-center gap-3 rounded-2xl px-5 py-4 ring-1 ${
+        className={`flex items-center gap-3.5 rounded-2xl px-5 py-4 border ${
           granted
-            ? "bg-granted/12 text-granted ring-granted/35"
-            : "bg-denied/12 text-denied ring-denied/35"
+            ? "bg-emerald-50 text-emerald-900 border-emerald-300"
+            : "bg-rose-50 text-rose-900 border-rose-300"
         }`}
       >
-        {granted ? <CheckCircle2 className={lg ? "h-10 w-10" : "h-7 w-7"} /> : <ShieldX className={lg ? "h-10 w-10" : "h-7 w-7"} />}
+        {granted ? (
+          <CheckCircle2 className={`text-emerald-600 ${lg ? "h-10 w-10" : "h-7 w-7"}`} />
+        ) : (
+          <ShieldX className={`text-rose-600 ${lg ? "h-10 w-10" : "h-7 w-7"}`} />
+        )}
         <div>
-          <p className="label" style={{ color: "inherit" }}>
-            Correct decision
+          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-slate-500">
+            Correct Decision
           </p>
-          <p className={`font-bold tracking-tight ${lg ? "text-5xl" : "text-3xl"}`}>
+          <p className={`font-bold tracking-tight ${lg ? "text-4xl" : "text-2xl"}`}>
             {reveal.correctDecision}
           </p>
         </div>
       </div>
 
-      <div className="panel-tight space-y-2 p-4">
-        <p className="label">Why</p>
-        <p className={`leading-relaxed text-ink-dim ${lg ? "text-2xl" : "text-sm"}`}>
+      <div className="rounded-xl bg-slate-50 p-4 border border-slate-200 space-y-1">
+        <p className="text-[0.65rem] font-bold uppercase tracking-wider text-slate-500">Reasoning</p>
+        <p className={`leading-relaxed text-slate-700 ${lg ? "text-xl" : "text-sm"}`}>
           {reveal.explanation}
         </p>
       </div>
 
-      <div className="rounded-2xl bg-violet/10 px-5 py-4 ring-1 ring-violet/30">
-        <p className="label text-violet">Security principle</p>
-        <p className={`mt-1 font-semibold leading-snug text-ink ${lg ? "text-3xl" : "text-base"}`}>
+      <div className="rounded-xl bg-blue-50 px-4 py-3 border border-blue-200">
+        <p className="text-[0.65rem] font-bold uppercase tracking-wider text-blue-700">Security Principle</p>
+        <p className={`mt-0.5 font-semibold text-slate-900 ${lg ? "text-2xl" : "text-sm"}`}>
           {reveal.principle}
         </p>
       </div>
@@ -311,14 +316,14 @@ export function Leaderboard({
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-ink-faint">
-        No players yet.
+      <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-xs text-slate-400">
+        No participants yet.
       </div>
     );
   }
 
   return (
-    <ol className="space-y-1.5">
+    <ol className="space-y-2">
       {rows.map((p, i) => {
         const rank = i + 1;
         const medal = rank <= 3;
@@ -326,34 +331,34 @@ export function Leaderboard({
           <motion.li
             key={p.id}
             layout={!lg}
-            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ring-1 transition-colors ${
+            className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 border transition-colors shadow-xs ${
               p.id === highlightId
-                ? "bg-cyan-glow/10 ring-cyan-glow/30"
+                ? "bg-blue-50/80 border-blue-300 font-bold"
                 : medal
-                  ? "bg-white/[0.04] ring-white/10"
-                  : "bg-transparent ring-transparent"
+                  ? "bg-amber-50/60 border-amber-200"
+                  : "bg-white border-slate-200 hover:bg-slate-50"
             }`}
           >
             <span
               className={`grid shrink-0 place-items-center rounded-lg font-bold tabular ${
-                lg ? "h-11 w-11 text-xl" : "h-8 w-8 text-sm"
-              } ${medal ? "bg-warn/15 text-warn ring-1 ring-warn/30" : "bg-white/5 text-ink-faint"}`}
+                lg ? "h-11 w-11 text-xl" : "h-7 w-7 text-xs"
+              } ${medal ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"}`}
             >
-              {medal ? <Trophy className={lg ? "h-6 w-6" : "h-4 w-4"} /> : rank}
+              {medal ? <Trophy className={lg ? "h-6 w-6" : "h-3.5 w-3.5 text-amber-600"} /> : rank}
             </span>
-            <span className={`min-w-0 flex-1 truncate font-semibold ${lg ? "text-3xl" : "text-sm"}`}>
+            <span className={`min-w-0 flex-1 truncate font-semibold text-slate-900 ${lg ? "text-2xl" : "text-sm"}`}>
               {p.nickname}
               {p.isBot && (
-                <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 align-middle text-[0.6rem] font-semibold uppercase tracking-wider text-ink-faint">
-                  demo
+                <span className="ml-2 rounded bg-indigo-50 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase text-indigo-700 border border-indigo-200">
+                  bot
                 </span>
               )}
               {!p.isConnected && (
-                <span className="ml-2 align-middle text-[0.65rem] font-medium text-denied">offline</span>
+                <span className="ml-2 text-[0.65rem] font-medium text-rose-600">offline</span>
               )}
             </span>
-            <span className={`tabular shrink-0 font-bold text-cyan-glow ${lg ? "text-4xl" : "text-sm"}`}>
-              {p.score}
+            <span className={`tabular shrink-0 font-bold text-blue-600 ${lg ? "text-3xl" : "text-sm"}`}>
+              {p.score} pts
             </span>
           </motion.li>
         );
@@ -366,11 +371,6 @@ export function Leaderboard({
 /* Confetti (final podium)                                             */
 /* ------------------------------------------------------------------ */
 
-/**
- * Deterministic scatter — a hash of the piece index rather than
- * Math.random, so the burst is identical on every render pass and the
- * component stays pure.
- */
 function scatter(seed: number): number {
   const x = Math.sin(seed * 12.9898) * 43758.5453;
   return x - Math.floor(x);
@@ -385,8 +385,8 @@ export function Confetti({ run }: { run: boolean }) {
         left: scatter(i + 1) * 100,
         delay: scatter(i + 7) * 1.6,
         duration: 2.6 + scatter(i + 19) * 2,
-        color: ["#22d3ee", "#2ee6a0", "#ffb020", "#8b7cff", "#ff4d6d"][i % 5],
-        size: 5 + scatter(i + 31) * 7,
+        color: ["#2563eb", "#059669", "#d97706", "#4f46e5", "#dc2626"][i % 5],
+        size: 6 + scatter(i + 31) * 6,
       })),
     [],
   );
@@ -427,8 +427,8 @@ export function RoundTrack({ current, total }: { current: number; total: number 
         return (
           <span
             key={n}
-            className={`h-1.5 flex-1 rounded-full transition-colors ${
-              done ? "bg-granted" : active ? "bg-cyan-glow" : "bg-white/10"
+            className={`h-2 flex-1 rounded-full transition-colors ${
+              done ? "bg-emerald-500" : active ? "bg-blue-600" : "bg-slate-200"
             }`}
           />
         );
@@ -458,33 +458,31 @@ export function DecisionButtons({
   return (
     <div className={`grid gap-3 ${lg ? "sm:grid-cols-2" : "grid-cols-2"}`}>
       {(["APPROVE", "DENY"] as Decision[]).map((d) => {
-        const granted = d === "APPROVE";
+        const isApprove = d === "APPROVE";
         const active = chosen === d;
-        const color = granted ? "var(--color-granted)" : "var(--color-denied)";
+
         return (
           <motion.button
             key={d}
             type="button"
             disabled={disabled}
             onClick={() => onChoose(d)}
-            whileTap={disabled ? undefined : { scale: 0.97 }}
-            className={`relative overflow-hidden rounded-2xl font-bold tracking-[0.1em] ring-1 transition-all select-none touch-manipulation cursor-pointer active:scale-95 disabled:cursor-not-allowed disabled:opacity-45 ${
-              lg ? "px-8 py-10 text-4xl sm:text-6xl" : "px-4 py-6 text-lg"
+            whileTap={disabled ? undefined : { scale: 0.96 }}
+            className={`relative flex items-center justify-center rounded-2xl font-bold tracking-wider border-2 transition-all select-none touch-manipulation cursor-pointer disabled:cursor-not-allowed disabled:opacity-45 shadow-sm ${
+              lg ? "px-8 py-10 text-3xl sm:text-5xl" : "px-4 py-5 text-base sm:text-lg"
+            } ${
+              isApprove
+                ? active
+                  ? "bg-emerald-600 text-white border-emerald-700 shadow-md"
+                  : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                : active
+                ? "bg-rose-600 text-white border-rose-700 shadow-md"
+                : "bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100"
             }`}
-            style={{
-              color,
-              backgroundColor: active ? `color-mix(in srgb, ${color} 16%, transparent)` : "transparent",
-              borderColor: `color-mix(in srgb, ${color} 35%, transparent)`,
-              boxShadow: active ? `0 0 40px -8px ${color}` : "none",
-            }}
           >
             <span className="relative z-10">{d}</span>
-            <span
-              className="absolute inset-x-0 -bottom-10 h-24 opacity-25 blur-2xl"
-              style={{ backgroundColor: color }}
-            />
             {locked && (
-              <span className="absolute right-3 top-3 text-[0.55rem] font-semibold uppercase tracking-[0.18em] text-ink-faint">
+              <span className="absolute right-3 top-3 text-[0.6rem] font-bold uppercase tracking-wider text-slate-500">
                 locked
               </span>
             )}
@@ -510,9 +508,9 @@ export function CountdownOverlay({ value }: { value: number | null }) {
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 1.25 }}
           transition={{ duration: reducedMotion ? 0.01 : 0.3 }}
-          className="pointer-events-none fixed inset-0 z-40 grid place-items-center bg-void/70 backdrop-blur-sm"
+          className="pointer-events-none fixed inset-0 z-40 grid place-items-center bg-slate-900/60 backdrop-blur-xs"
         >
-          <span className="tabular text-[22vw] font-black leading-none text-cyan-glow drop-shadow-[0_0_60px_rgba(34,211,238,0.6)]">
+          <span className="tabular text-[20vw] font-black leading-none text-white drop-shadow-xl">
             {value}
           </span>
         </motion.div>
@@ -545,13 +543,13 @@ export function PointsBadge({ points }: { points: number | null }) {
     <motion.div
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      className="inline-flex items-center gap-2 rounded-full bg-granted/12 px-4 py-2 text-granted ring-1 ring-granted/30"
+      className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-emerald-800 border border-emerald-200 shadow-xs"
     >
-      <Trophy className="h-4 w-4" />
+      <Trophy className="h-4 w-4 text-emerald-600" />
       <span className="tabular text-lg font-bold">
         {points === null ? "—" : `+${shown}`}
       </span>
-      {points !== null && <span className="text-xs font-medium text-ink-faint">points</span>}
+      {points !== null && <span className="text-xs font-semibold text-emerald-700">points</span>}
     </motion.div>
   );
 }
@@ -564,9 +562,9 @@ export function ResponseRate({ voted, total }: { voted: number; total: number })
   const pct = total > 0 ? Math.round((voted / total) * 100) : 0;
   return (
     <div className="space-y-1.5">
-      <div className="flex justify-between text-xs text-ink-faint">
+      <div className="flex justify-between text-xs text-slate-500">
         <span>Response rate</span>
-        <span className="tabular">{pct}%</span>
+        <span className="tabular font-semibold text-slate-800">{pct}%</span>
       </div>
       <Meter value={voted} max={Math.max(1, total)} />
     </div>

@@ -19,8 +19,8 @@ import type { Decision, RoomSnapshot } from "@/lib/types";
 
 /**
  * Audience / projector view. Optimised for a 16:9 wall display: large
- * type, high contrast, minimal chrome, and NO answer information until
- * the host reveals it.
+ * type, high contrast, clean human college styling, minimal chrome,
+ * and NO answer information until the host reveals it.
  */
 export function ProjectorScreen({ initial }: { initial: RoomSnapshot }) {
   const { snapshot, connection, skew } = useRoom(initial.code, initial);
@@ -30,7 +30,6 @@ export function ProjectorScreen({ initial }: { initial: RoomSnapshot }) {
   const [countdown, setCountdown] = useState<number | null>(null);
   useEffect(() => {
     if (snap.status !== "countdown" || !snap.round?.openedAt) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing a finished countdown when server state changes.
       setCountdown(null);
       return;
     }
@@ -51,20 +50,20 @@ export function ProjectorScreen({ initial }: { initial: RoomSnapshot }) {
     snap.round?.status === "open" && snap.status !== "countdown" && !suspended;
 
   return (
-    <div className="screen-mode relative z-10 flex min-h-dvh flex-col px-[2.2vw] py-[1.6vw]">
+    <div className="relative z-10 flex min-h-dvh flex-col bg-slate-50 px-[2.2vw] py-[1.6vw] text-slate-900">
       <CountdownOverlay value={countdown} />
       <Confetti run={finished} />
 
       {/* Top bar */}
-      <header className="flex shrink-0 items-center justify-between gap-4">
+      <header className="flex shrink-0 items-center justify-between gap-4 bg-white p-[1.2vw] rounded-[1.2vw] border border-slate-200 shadow-sm">
         <div className="flex items-center gap-4">
           <Logo />
-          <span className="mono rounded-lg bg-white/5 px-4 py-1.5 text-[1.5vw] font-black tracking-[0.3em] text-cyan-glow ring-1 ring-cyan-glow/25">
+          <span className="font-mono rounded-xl bg-blue-50 px-4 py-1.5 text-[1.5vw] font-bold tracking-widest text-blue-600 border border-blue-200">
             {snap.code}
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <BigStat icon={<Users className="h-[1.6vw] w-[1.6vw]" />} value={snap.players.length} label="players" />
+          <BigStat icon={<Users className="h-[1.6vw] w-[1.6vw]" />} value={snap.players.length} label="students" />
           <BigStat
             icon={<Clock className="h-[1.6vw] w-[1.6vw]" />}
             value={snap.status === "waiting" ? 0 : snap.currentRound}
@@ -88,7 +87,7 @@ export function ProjectorScreen({ initial }: { initial: RoomSnapshot }) {
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.45 }}
-                className="min-h-0 flex-1 overflow-hidden rounded-[1.2vw] bg-white/[0.02] px-[1.8vw] py-[1.6vw] ring-1 ring-white/8"
+                className="min-h-0 flex-1 overflow-hidden rounded-[1.4vw] bg-white px-[2vw] py-[1.8vw] border border-slate-200 shadow-sm"
               >
                 <ScenarioCard snapshot={snap} size="lg" />
               </motion.section>
@@ -103,7 +102,7 @@ export function ProjectorScreen({ initial }: { initial: RoomSnapshot }) {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.5 }}
-                    className="shrink-0"
+                    className="shrink-0 bg-white p-[1.6vw] rounded-[1.4vw] border border-slate-200 shadow-sm"
                   >
                     <RevealPanel reveal={snap.round?.reveal ?? null} size="lg" />
                   </motion.div>
@@ -112,21 +111,21 @@ export function ProjectorScreen({ initial }: { initial: RoomSnapshot }) {
                     key="suspense"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="flex items-center gap-[1.2vw] rounded-3xl bg-violet/10 px-[2vw] py-[1.4vw] ring-1 ring-violet/30"
+                    className="flex items-center gap-[1.2vw] rounded-2xl bg-indigo-50 px-[2vw] py-[1.4vw] border border-indigo-200 shadow-sm"
                   >
                     <span className="relative grid h-[4vw] w-[4vw] place-items-center">
-                      <span className="absolute inset-0 rounded-full border-2 border-violet/40" />
+                      <span className="absolute inset-0 rounded-full border-2 border-indigo-300" />
                       <motion.span
-                        className="absolute inset-0 rounded-full border-2 border-violet"
+                        className="absolute inset-0 rounded-full border-2 border-indigo-600"
                         animate={{ scale: [1, 1.25], opacity: [0.8, 0] }}
                         transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut" }}
                       />
-                      <span className="h-[1.6vw] w-[1.6vw] rounded-full bg-violet" />
+                      <span className="h-[1.6vw] w-[1.6vw] rounded-full bg-indigo-600" />
                     </span>
                     <div>
-                      <p className="text-[2.6vw] font-black text-violet">Voting closed</p>
-                      <p className="text-[1.4vw] text-ink-dim">
-                        {snap.round?.tally.total ?? 0} answers in — waiting for the host to reveal.
+                      <p className="text-[2.2vw] font-bold text-indigo-900">Voting Closed</p>
+                      <p className="text-[1.3vw] text-slate-600">
+                        {snap.round?.tally.total ?? 0} answers submitted — awaiting host reveal.
                       </p>
                     </div>
                   </motion.div>
@@ -138,16 +137,16 @@ export function ProjectorScreen({ initial }: { initial: RoomSnapshot }) {
 
         {/* Right rail: timer + live distribution + top 3 */}
         <aside className="flex w-[28vw] shrink-0 flex-col gap-[1.2vw]">
-          <div className="flex items-center justify-center rounded-3xl bg-white/[0.03] px-[1.2vw] py-[1.4vw] ring-1 ring-white/8">
+          <div className="flex items-center justify-center rounded-[1.4vw] bg-white px-[1.2vw] py-[1.4vw] border border-slate-200 shadow-sm">
             <TimerRing msLeft={msLeft} totalMs={totalMs} size={200} stroke={12} />
           </div>
 
-          <div className="rounded-3xl bg-white/[0.03] px-[1.4vw] py-[1.4vw] ring-1 ring-white/8">
+          <div className="rounded-[1.4vw] bg-white px-[1.6vw] py-[1.4vw] border border-slate-200 shadow-sm">
             {snap.status === "waiting" ? (
               <>
-                <p className="label">Live distribution</p>
-                <p className="mt-2 text-[1.4vw] text-ink-faint">
-                  Results appear here the moment voting opens.
+                <p className="text-[0.8vw] font-bold uppercase tracking-wider text-slate-500">Live Vote Distribution</p>
+                <p className="mt-2 text-[1.2vw] text-slate-400">
+                  Live responses appear as students submit their choices.
                 </p>
               </>
             ) : (
@@ -155,10 +154,10 @@ export function ProjectorScreen({ initial }: { initial: RoomSnapshot }) {
             )}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-hidden rounded-3xl bg-white/[0.03] px-[1.4vw] py-[1.4vw] ring-1 ring-white/8">
-            <p className="label flex items-center gap-2">
-              <Trophy className="h-[1.4vw] w-[1.4vw]" />
-              Top three
+          <div className="min-h-0 flex-1 overflow-hidden rounded-[1.4vw] bg-white px-[1.6vw] py-[1.4vw] border border-slate-200 shadow-sm">
+            <p className="text-[0.8vw] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+              <Trophy className="h-[1.4vw] w-[1.4vw] text-amber-500" />
+              Top Participants
             </p>
             <div className="mt-2">
               <Leaderboard players={snap.leaderboard} size="lg" limit={3} />
@@ -168,16 +167,16 @@ export function ProjectorScreen({ initial }: { initial: RoomSnapshot }) {
       </div>
 
       {/* Footer */}
-      <footer className="mt-[1.2vw] flex shrink-0 items-center justify-between text-[1vw] text-ink-faint">
+      <footer className="mt-[1.2vw] flex shrink-0 items-center justify-between text-[1vw] text-slate-500">
         <span>
           {suspended
-            ? "PAUSED BY HOST"
+            ? "PAUSED BY INSTRUCTOR"
             : connection === "live"
-              ? "Live · server-synchronised"
-              : "Reconnecting…"}
+              ? "Live Server Sync Active"
+              : "Connecting…"}
         </span>
-        <span className="hidden sm:block">
-          CampusLock · Smart University Access Management Simulation
+        <span className="hidden sm:block font-medium">
+          CampusLock · University Security Lab (OS Final Project)
         </span>
       </footer>
     </div>
@@ -186,15 +185,28 @@ export function ProjectorScreen({ initial }: { initial: RoomSnapshot }) {
 
 /**
  * The two enormous, colour-coded choices, sized for the back of the room.
- * They show the shape of the split only — never which one is correct.
  */
 function ChoiceGate({ snapshot }: { snapshot: RoomSnapshot }) {
   const tally = snapshot.round?.tally ?? { approve: 0, deny: 0, total: 0 };
   const total = Math.max(1, tally.total);
 
-  const gates: { label: Decision; count: number; color: string }[] = [
-    { label: "APPROVE", count: tally.approve, color: "var(--color-granted)" },
-    { label: "DENY", count: tally.deny, color: "var(--color-denied)" },
+  const gates: { label: Decision; count: number; bg: string; text: string; border: string; bar: string }[] = [
+    {
+      label: "APPROVE",
+      count: tally.approve,
+      bg: "bg-emerald-50",
+      text: "text-emerald-800",
+      border: "border-emerald-300",
+      bar: "bg-emerald-100",
+    },
+    {
+      label: "DENY",
+      count: tally.deny,
+      bg: "bg-rose-50",
+      text: "text-rose-800",
+      border: "border-rose-300",
+      bar: "bg-rose-100",
+    },
   ];
 
   return (
@@ -202,25 +214,19 @@ function ChoiceGate({ snapshot }: { snapshot: RoomSnapshot }) {
       {gates.map((g) => (
         <div
           key={g.label}
-          className="relative flex min-h-[9vw] flex-col items-center justify-center overflow-hidden rounded-[1.2vw] px-[1.5vw] py-[1.4vw] ring-2"
-          style={{
-            color: g.color,
-            borderColor: `color-mix(in srgb, ${g.color} 38%, transparent)`,
-            backgroundColor: `color-mix(in srgb, ${g.color} 7%, transparent)`,
-          }}
+          className={`relative flex min-h-[9vw] flex-col items-center justify-center overflow-hidden rounded-[1.4vw] px-[1.5vw] py-[1.4vw] border-2 shadow-sm ${g.bg} ${g.text} ${g.border}`}
         >
           <span
-            className="absolute inset-y-0 left-0 transition-[width] duration-500 ease-out"
+            className={`absolute inset-y-0 left-0 transition-[width] duration-500 ease-out ${g.bar}`}
             style={{
               width: `${(g.count / total) * 100}%`,
-              backgroundColor: `color-mix(in srgb, ${g.color} 14%, transparent)`,
             }}
           />
-          <span className="relative z-10 text-[5vw] font-black leading-none tracking-tight">
+          <span className="relative z-10 text-[4.5vw] font-bold leading-none tracking-tight">
             {g.label}
           </span>
-          <span className="relative z-10 mt-[0.4vw] tabular text-[2vw] font-bold opacity-80">
-            {g.count} {g.count === 1 ? "vote" : "votes"}
+          <span className="relative z-10 mt-[0.4vw] tabular text-[1.8vw] font-semibold opacity-90">
+            {g.count} {g.count === 1 ? "student" : "students"}
           </span>
         </div>
       ))}
@@ -235,30 +241,30 @@ function Lobby({ snap }: { snap: RoomSnapshot }) {
     <motion.div
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="flex flex-1 flex-col items-center justify-center text-center"
+      className="flex flex-1 flex-col items-center justify-center rounded-[1.4vw] bg-white p-[3vw] border border-slate-200 shadow-sm text-center"
     >
       <motion.div
         animate={{ scale: [1, 1.04, 1] }}
         transition={{ duration: 3, repeat: Infinity }}
-        className="grid h-[9vw] w-[9vw] place-items-center rounded-[2vw] bg-cyan-glow/10 ring-2 ring-cyan-glow/30"
+        className="grid h-[8vw] w-[8vw] place-items-center rounded-[2vw] bg-blue-50 text-blue-600 border border-blue-200"
       >
-        <Users className="h-[4vw] w-[4vw] text-cyan-glow" />
+        <Users className="h-[4vw] w-[4vw] text-blue-600" />
       </motion.div>
-      <h1 className="mt-[2vw] text-[5vw] font-black leading-[1.05] tracking-tight">
-        Scan. Join.
-        <span className="block bg-gradient-to-r from-cyan-glow to-granted bg-clip-text text-transparent">
-          Then watch the room decide.
+      <h1 className="mt-[2vw] text-[4vw] font-bold leading-tight tracking-tight text-slate-900">
+        Scan QR Code on Phone
+        <span className="block text-blue-600">
+          to join the campus access simulation.
         </span>
       </h1>
-      <p className="mt-[1.6vw] max-w-[60vw] text-[1.8vw] leading-relaxed text-ink-dim">
+      <p className="mt-[1.2vw] max-w-[55vw] text-[1.5vw] leading-relaxed text-slate-600">
         {snap.players.length === 0
-          ? "Nobody has joined yet. Keep this screen open — players appear the moment they scan the code."
-          : `${snap.players.length} ${snap.players.length === 1 ? "player is" : "players are"} in the room. The host will start shortly.`}
+          ? "No students have joined yet. Scan the code to receive your student clearance badge."
+          : `${snap.players.length} ${snap.players.length === 1 ? "student is" : "students are"} connected. The instructor will begin shortly.`}
       </p>
-      <div className="mt-[3vw] flex gap-[2vw]">
-        <Pill label="Room" value={snap.code} />
-        <Pill label="Players" value={String(snap.players.length)} />
-        <Pill label="Rounds" value={String(snap.totalRounds)} />
+      <div className="mt-[2.5vw] flex gap-[2vw]">
+        <Pill label="Room Code" value={snap.code} />
+        <Pill label="Connected Students" value={String(snap.players.length)} />
+        <Pill label="Quiz Scenarios" value={String(snap.totalRounds)} />
       </div>
     </motion.div>
   );
@@ -273,11 +279,11 @@ function Podium({ snap }: { snap: RoomSnapshot }) {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="flex flex-1 flex-col items-center justify-center"
+      className="flex flex-1 flex-col items-center justify-center rounded-[1.4vw] bg-white p-[3vw] border border-slate-200 shadow-sm"
     >
-      <p className="label text-cyan-glow">Session complete</p>
-      <h1 className="mt-[0.6vw] text-[4.5vw] font-black leading-none tracking-tight">
-        Access Governance, <span className="text-warn">decided.</span>
+      <p className="text-[1vw] font-bold uppercase tracking-wider text-blue-600">Session Complete</p>
+      <h1 className="mt-[0.6vw] text-[4vw] font-bold leading-none tracking-tight text-slate-900">
+        Campus Access Decisions, <span className="text-amber-600">Evaluated.</span>
       </h1>
 
       <div className="mt-[3vw] flex items-end justify-center gap-[2vw]">
@@ -292,29 +298,29 @@ function Podium({ snap }: { snap: RoomSnapshot }) {
               transition={{ delay: 0.15 * i, type: "spring", stiffness: 140, damping: 16 }}
               className="flex w-[16vw] flex-col items-center"
             >
-              {isFirst && <Trophy className="mb-[0.8vw] h-[3vw] w-[3vw] text-warn" />}
+              {isFirst && <Trophy className="mb-[0.8vw] h-[3vw] w-[3vw] text-amber-500" />}
               <span
-                className={`mb-[0.8vw] max-w-full truncate font-black ${
-                  isFirst ? "text-[2.4vw] text-ink" : "text-[1.9vw] text-ink-dim"
+                className={`mb-[0.8vw] max-w-full truncate font-bold ${
+                  isFirst ? "text-[2.2vw] text-slate-900" : "text-[1.8vw] text-slate-700"
                 }`}
               >
                 {p.nickname}
               </span>
               <div
-                className={`flex w-full flex-col items-center justify-center rounded-t-[1.4vw] ${
+                className={`flex w-full flex-col items-center justify-center rounded-t-[1.4vw] border ${
                   isFirst
-                    ? "bg-gradient-to-b from-warn/35 to-warn/10 ring-2 ring-warn/40"
-                    : "bg-white/[0.05] ring-1 ring-white/10"
+                    ? "bg-amber-100 border-amber-300 shadow-sm"
+                    : "bg-slate-100 border-slate-200"
                 } ${heights[i]}`}
               >
                 <span
-                  className={`tabular font-black ${
-                    isFirst ? "text-[4vw] text-warn" : "text-[3vw] text-ink-dim"
+                  className={`tabular font-bold ${
+                    isFirst ? "text-[3.5vw] text-amber-900" : "text-[2.6vw] text-slate-700"
                   }`}
                 >
                   {p.score}
                 </span>
-                <span className="label mt-[0.4vw]">#{place}</span>
+                <span className="text-[0.9vw] font-bold uppercase text-slate-500 mt-[0.4vw]">#{place} Place</span>
               </div>
             </motion.div>
           );
@@ -322,7 +328,7 @@ function Podium({ snap }: { snap: RoomSnapshot }) {
       </div>
 
       {top.length === 0 && (
-        <p className="mt-[2vw] text-[1.6vw] text-ink-faint">No players scored this session.</p>
+        <p className="mt-[2vw] text-[1.4vw] text-slate-400">No students scored this session.</p>
       )}
     </motion.div>
   );
@@ -330,9 +336,9 @@ function Podium({ snap }: { snap: RoomSnapshot }) {
 
 function Pill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-white/[0.04] px-[1.6vw] py-[1vw] ring-1 ring-white/10">
-      <p className="label">{label}</p>
-      <p className="mono mt-1 text-[2.2vw] font-black tracking-[0.2em] text-cyan-glow">{value}</p>
+    <div className="rounded-2xl bg-slate-50 px-[1.6vw] py-[1vw] border border-slate-200 shadow-xs">
+      <p className="text-[0.7vw] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+      <p className="font-mono mt-1 text-[2vw] font-bold tracking-wider text-blue-600">{value}</p>
     </div>
   );
 }
@@ -347,32 +353,30 @@ function BigStat({
   label: string;
 }) {
   return (
-    <div className="flex items-center gap-[0.6vw] rounded-2xl bg-white/[0.04] px-[1.2vw] py-[0.7vw] ring-1 ring-white/10">
-      <span className="text-cyan-glow">{icon}</span>
-      <span className="tabular text-[1.8vw] font-black text-ink">{value}</span>
-      <span className="text-[1vw] text-ink-faint">{label}</span>
+    <div className="flex items-center gap-[0.6vw] rounded-xl bg-slate-50 px-[1.2vw] py-[0.7vw] border border-slate-200 shadow-xs">
+      <span className="text-blue-600">{icon}</span>
+      <span className="tabular text-[1.6vw] font-bold text-slate-900">{value}</span>
+      <span className="text-[0.9vw] text-slate-500 font-medium">{label}</span>
     </div>
   );
 }
 
-const LAMP: Record<string, { text: string; ring: string; bg: string }> = {
-  waiting: { text: "LOBBY", ring: "ring-white/12", bg: "bg-white/5 text-ink-dim" },
-  countdown: { text: "STAND BY", ring: "ring-warn/35", bg: "bg-warn/12 text-warn" },
-  active: { text: "VOTING", ring: "ring-cyan-glow/35", bg: "bg-cyan-glow/12 text-cyan-glow" },
-  paused: { text: "PAUSED", ring: "ring-warn/35", bg: "bg-warn/12 text-warn" },
-  revealing: { text: "REVEALED", ring: "ring-violet/35", bg: "bg-violet/12 text-violet" },
-  finished: { text: "FINISHED", ring: "ring-granted/35", bg: "bg-granted/12 text-granted" },
+const LAMP: Record<string, { text: string; border: string; bg: string; dot: string }> = {
+  waiting: { text: "LOBBY", border: "border-slate-200", bg: "bg-slate-100 text-slate-700", dot: "bg-slate-400" },
+  countdown: { text: "STAND BY", border: "border-amber-200", bg: "bg-amber-50 text-amber-800", dot: "bg-amber-500" },
+  active: { text: "VOTING OPEN", border: "border-blue-200", bg: "bg-blue-50 text-blue-700", dot: "bg-blue-500" },
+  paused: { text: "PAUSED", border: "border-amber-200", bg: "bg-amber-50 text-amber-800", dot: "bg-amber-500" },
+  revealing: { text: "REVEALED", border: "border-indigo-200", bg: "bg-indigo-50 text-indigo-700", dot: "bg-indigo-500" },
+  finished: { text: "FINISHED", border: "border-emerald-200", bg: "bg-emerald-50 text-emerald-800", dot: "bg-emerald-500" },
 };
 
 function StatusLamp({ status }: { status: string }) {
   const tone = LAMP[status] ?? LAMP.waiting;
-  const Icon =
-    status === "active" ? CheckCircle2 : status === "revealing" ? CheckCircle2 : ShieldX;
   return (
     <span
-      className={`flex items-center gap-[0.6vw] rounded-2xl px-[1.2vw] py-[0.7vw] text-[1.2vw] font-black uppercase tracking-[0.2em] ring-1 ${tone.bg} ${tone.ring}`}
+      className={`flex items-center gap-[0.6vw] rounded-xl px-[1.2vw] py-[0.7vw] text-[1vw] font-bold uppercase tracking-wider border shadow-xs ${tone.bg} ${tone.border}`}
     >
-      <Icon className="h-[1.4vw] w-[1.4vw]" />
+      <span className={`h-2.5 w-2.5 rounded-full ${tone.dot} animate-pulse`} />
       {tone.text}
     </span>
   );

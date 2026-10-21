@@ -118,112 +118,86 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
     setError(null);
     startTransition(async () => {
       const res = await hostCommandAction(code, command);
-      if (!res.ok) setError(res.error ?? "Command failed.");
-    });
-  }
-
-  async function copy(text: string, key: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(key);
-      setTimeout(() => setCopied(null), 1600);
-    } catch {
-      setError("Clipboard unavailable — select the text manually.");
-    }
-  }
-
-  async function handleRoleChange(playerId: string, newRole: string) {
-    setError(null);
-    startTransition(async () => {
-      try {
-        const res = await updateUserRoleAction(code, playerId, newRole);
-        if (res.ok) {
-          sfx("lock");
-        } else {
-          setError(res.error ?? "Failed to update role.");
-        }
-      } catch {
-        setError("Network error updating role.");
+      if (!res.ok) {
+        setError(res.error ?? "Failed to execute host command.");
       }
     });
   }
 
-  async function handleToggleRevocation(playerId: string) {
+  function copy(text: string, label: string) {
+    void navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied((c) => (c === label ? null : c)), 2000);
+  }
+
+  // RBAC management handlers
+  function handleRoleChange(playerId: string, newRoleId: string) {
     setError(null);
     startTransition(async () => {
-      try {
-        const res = await toggleUserRevocationAction(code, playerId);
-        if (res.ok) {
-          sfx("denied");
-        } else {
-          setError(res.error ?? "Failed to toggle badge status.");
-        }
-      } catch {
-        setError("Network error toggling badge status.");
+      const res = await updateUserRoleAction(code, playerId, newRoleId);
+      if (!res.ok) {
+        setError(res.error ?? "Failed to update role.");
+      } else {
+        sfx("lock");
       }
     });
   }
 
-  async function handleResolveRequest(requestId: string, decision: "approve" | "reject") {
+  function handleToggleRevocation(playerId: string) {
     setError(null);
     startTransition(async () => {
-      try {
-        const res = await resolveAccessRequestAction(code, requestId, decision);
-        if (res.ok) {
-          sfx(decision === "approve" ? "granted" : "denied");
-        } else {
-          setError(res.error ?? "Failed to process emergency request.");
-        }
-      } catch {
-        setError("Network error processing emergency request.");
+      const res = await toggleUserRevocationAction(code, playerId);
+      if (!res.ok) {
+        setError(res.error ?? "Failed to toggle badge status.");
+      } else {
+        sfx("lock");
       }
     });
   }
 
-  async function handleResolveAdmission(playerId: string, decision: "approve" | "reject") {
+  function handleResolveRequest(requestId: string, decision: "approve" | "reject") {
     setError(null);
     startTransition(async () => {
-      try {
-        const res = await resolveAdmissionAction(code, playerId, decision);
-        if (res.ok) {
-          sfx(decision === "approve" ? "granted" : "denied");
-        } else {
-          setError(res.error ?? "Failed to process admission request.");
-        }
-      } catch {
-        setError("Network error processing admission.");
+      const res = await resolveAccessRequestAction(code, requestId, decision);
+      if (!res.ok) {
+        setError(res.error ?? "Failed to resolve door key request.");
+      } else {
+        sfx(decision === "approve" ? "granted" : "denied");
       }
     });
   }
 
-  async function handleApproveAllAdmissions() {
+  function handleResolveAdmission(playerId: string, decision: "approve" | "reject") {
     setError(null);
     startTransition(async () => {
-      try {
-        const res = await approveAllAdmissionsAction(code);
-        if (res.ok) {
-          sfx("granted");
-        } else {
-          setError(res.error ?? "Failed to admit all.");
-        }
-      } catch {
-        setError("Network error admitting all.");
+      const res = await resolveAdmissionAction(code, playerId, decision);
+      if (!res.ok) {
+        setError(res.error ?? "Failed to resolve student admission.");
+      } else {
+        sfx(decision === "approve" ? "granted" : "denied");
       }
     });
   }
 
-  const connected = snap.players.filter((p) => p.isConnected).length;
+  function handleApproveAllAdmissions() {
+    setError(null);
+    startTransition(async () => {
+      const res = await approveAllAdmissionsAction(code);
+      if (!res.ok) {
+        setError(res.error ?? "Failed to approve all student admissions.");
+      } else {
+        sfx("granted");
+      }
+    });
+  }
+
   const total = snap.players.length;
-
-  // Pending student admissions
+  const connected = snap.players.filter((p) => p.isConnected).length;
+  const pendingRequests = (snap.accessRequests ?? []).filter((r) => r.status === "pending");
   const pendingAdmissions = snap.players.filter((p) => p.admissionStatus === "pending");
 
-  // Pending emergency requests
-  const pendingRequests = (snap.accessRequests ?? []).filter((r) => r.status === "pending");
-
-  // Filtered audit logs
   const auditLogs = (snap.auditLogs ?? []).filter((log) => {
-    if (auditFilter === "denials") return log.outcome === "DENIED";
+    if (auditFilter === "denials") return log.outcome === "DENIED" || log.outcome === "EMERGENCY_REJECTED";
     if (auditFilter === "promotions") return log.outcome === "PROMOTED" || log.outcome === "DEMOTED";
     if (auditFilter === "emergency")
       return (
@@ -237,54 +211,54 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
   return (
     <main className="relative z-10 mx-auto max-w-[1700px] px-4 pb-16 pt-5 sm:px-6">
       {/* Top bar */}
-      <header className="flex flex-wrap items-center justify-between gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-3">
           <Logo />
-          <span className="hidden h-6 w-px bg-white/10 sm:block" />
+          <span className="hidden h-6 w-px bg-slate-200 sm:block" />
           <div className="flex items-center gap-2">
-            <span className="label">Room</span>
+            <span className="label text-slate-500">Room</span>
             <button
               onClick={() => copy(code, "code")}
-              className="mono rounded-lg bg-white/5 px-3 py-1.5 text-lg font-black tracking-[0.28em] text-cyan-glow ring-1 ring-cyan-glow/25 transition hover:bg-cyan-glow/10"
+              className="font-mono rounded-lg bg-blue-50 px-3 py-1 text-base font-bold tracking-wider text-blue-600 border border-blue-200 transition hover:bg-blue-100"
               title="Copy room code"
             >
               {code}
             </button>
-            {copied === "code" && <span className="text-xs font-semibold text-granted">copied</span>}
+            {copied === "code" && <span className="text-xs font-semibold text-emerald-600">Copied!</span>}
           </div>
           <StatusPill status={status} />
         </div>
 
         <div className="flex items-center gap-2">
           {/* Main Host Navigation Switcher */}
-          <div className="flex items-center rounded-xl bg-white/[0.04] p-1 ring-1 ring-white/10">
+          <div className="flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200">
             <button
               onClick={() => setAdminTab("rbac")}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition shadow-xs ${
                 adminTab === "rbac"
-                  ? "bg-cyan-glow/20 text-cyan-glow shadow-sm ring-1 ring-cyan-glow/40"
-                  : "text-ink-faint hover:text-white"
+                  ? "bg-white text-blue-600 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
               <ShieldCheck className="h-3.5 w-3.5" />
-              Campus & Door Control
+              Campus & Door Access
               {pendingAdmissions.length > 0 && (
-                <span className="ml-1 rounded-full bg-cyan-glow px-2 py-0.5 text-[0.65rem] font-bold text-black animate-pulse">
-                  {pendingAdmissions.length} new
+                <span className="ml-1 rounded-full bg-blue-600 px-2 py-0.5 text-[0.65rem] font-bold text-white animate-pulse">
+                  {pendingAdmissions.length} waiting
                 </span>
               )}
               {pendingRequests.length > 0 && (
-                <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.2 text-[0.65rem] font-black text-black animate-pulse">
+                <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.2 text-[0.65rem] font-black text-white animate-pulse">
                   {pendingRequests.length} key req
                 </span>
               )}
             </button>
             <button
               onClick={() => setAdminTab("scenarios")}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition shadow-xs ${
                 adminTab === "scenarios"
-                  ? "bg-cyan-glow/20 text-cyan-glow shadow-sm ring-1 ring-cyan-glow/40"
-                  : "text-ink-faint hover:text-white"
+                  ? "bg-white text-blue-600 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
               <Radio className="h-3.5 w-3.5" />
@@ -309,7 +283,7 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
             href={screenUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-violet/12 px-3 py-2 text-xs font-bold uppercase tracking-[0.14em] text-violet ring-1 ring-violet/30 transition hover:bg-violet/20"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 border border-indigo-200 transition hover:bg-indigo-100 shadow-sm"
           >
             <MonitorUp className="h-3.5 w-3.5" />
             Projector
@@ -324,20 +298,20 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
       )}
 
       {passphrase && !revealed && status !== "finished" && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-warn/10 px-4 py-3 ring-1 ring-warn/30">
-          <p className="flex items-center gap-2 text-sm text-warn">
-            <Lock className="h-4 w-4" />
-            Host passphrase — save it now. It is not shown again.
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-amber-50 px-5 py-3.5 border border-amber-200 shadow-sm">
+          <p className="flex items-center gap-2 text-sm text-amber-900 font-medium">
+            <Lock className="h-4 w-4 text-amber-600" />
+            Host passphrase — save this to re-open this session from another device:
           </p>
           <div className="flex items-center gap-3">
-            <code className="mono rounded bg-black/30 px-3 py-1.5 font-bold tracking-[0.2em] text-warn">
+            <code className="font-mono rounded-lg bg-white px-3 py-1.5 font-bold tracking-wider text-amber-900 border border-amber-300 shadow-xs">
               {passphrase}
             </code>
             <button
               onClick={() => copy(passphrase, "pp")}
-              className="text-xs font-bold uppercase tracking-wider text-warn/80 hover:text-warn"
+              className="text-xs font-bold text-amber-800 hover:underline"
             >
-              {copied === "pp" ? "copied" : "copy"}
+              {copied === "pp" ? "Copied!" : "Copy Passphrase"}
             </button>
             <button
               onClick={() => {
@@ -348,9 +322,9 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                 }
                 setPassphrase(null);
               }}
-              className="text-xs font-bold uppercase tracking-wider text-ink-faint hover:text-ink-dim"
+              className="text-xs font-semibold text-slate-500 hover:text-slate-700"
             >
-              hide
+              Hide
             </button>
           </div>
         </div>
@@ -358,50 +332,50 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
 
       {/* Pending Student Admissions Banner */}
       {pendingAdmissions.length > 0 && (
-        <div className="mt-4 rounded-2xl border border-cyan-glow/30 bg-cyan-glow/[0.08] p-5 shadow-lg backdrop-blur-md">
+        <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50/70 p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-glow/20 text-cyan-glow">
-                <Users className="h-5 w-5" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
+                <Users className="h-6 w-6" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-white">
+                <h2 className="text-base font-bold text-slate-900">
                   {pendingAdmissions.length} Student{pendingAdmissions.length > 1 ? "s" : ""} Waiting for Admission
                 </h2>
-                <p className="text-xs text-ink-dim">
-                  These participants scanned the QR code and are requesting entry to the session.
+                <p className="text-xs text-slate-600">
+                  These participants scanned the QR code and are waiting for your approval to enter the room.
                 </p>
               </div>
             </div>
             <button
               onClick={handleApproveAllAdmissions}
               disabled={pending}
-              className="flex items-center gap-2 rounded-xl bg-granted px-4 py-2 text-xs font-bold text-black shadow-md transition hover:brightness-110 active:scale-95"
+              className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
             >
               <Check className="h-4 w-4" />
-              Admit All ({pendingAdmissions.length})
+              Admit All Students ({pendingAdmissions.length})
             </button>
           </div>
 
-          <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {pendingAdmissions.map((player) => {
               const pRole = getRole(player.roleId ?? "undergrad");
               return (
                 <div
                   key={player.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/40 p-3"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs"
                 >
                   <div>
-                    <p className="font-bold text-white text-sm">{player.nickname}</p>
-                    <p className="text-xs text-ink-dim">
-                      Role: <span className="text-cyan-glow font-medium">{pRole.name}</span>
+                    <p className="font-bold text-slate-900 text-sm">{player.nickname}</p>
+                    <p className="text-xs text-slate-500">
+                      Role: <span className="text-blue-600 font-semibold">{pRole.name}</span>
                     </p>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleResolveAdmission(player.id, "reject")}
                       disabled={pending}
-                      className="rounded-lg bg-white/5 px-2.5 py-1.5 text-xs font-semibold text-ink-dim hover:bg-denied/20 hover:text-denied transition"
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition"
                       title="Decline entry"
                     >
                       Decline
@@ -409,7 +383,7 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                     <button
                       onClick={() => handleResolveAdmission(player.id, "approve")}
                       disabled={pending}
-                      className="rounded-lg bg-granted/20 px-3 py-1.5 text-xs font-bold text-granted ring-1 ring-granted/30 hover:bg-granted/30 transition"
+                      className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
                     >
                       Admit
                     </button>
@@ -425,32 +399,32 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
       <div className="mt-4 grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
         {/* ---------------- LEFT: QR + Room Controls ---------------- */}
         <div className="space-y-4">
-          <Panel className="p-5">
-            <SectionTitle icon={<Users className="h-3.5 w-3.5" />}>Join this room</SectionTitle>
+          <Panel className="p-5 bg-white border border-slate-200 shadow-sm">
+            <SectionTitle icon={<Users className="h-3.5 w-3.5 text-blue-600" />}>Join this room</SectionTitle>
 
-            <div className="rounded-xl bg-black/25 px-4 py-3 ring-1 ring-cyan-glow/20">
-              <p className="label">Room code</p>
+            <div className="rounded-xl bg-slate-50 p-4 border border-slate-200 text-center">
+              <p className="label text-slate-500">Session Room Code</p>
               <button
                 onClick={() => copy(code, "code")}
                 title="Copy room code"
-                className="mono mt-1 block text-[2.4rem] leading-none font-black tracking-[0.24em] text-cyan-glow"
+                className="font-mono mt-1 block w-full text-center text-[2.2rem] leading-none font-black tracking-wider text-blue-600 hover:text-blue-700"
               >
                 {code}
               </button>
             </div>
 
             <div className="mt-4 flex items-start gap-4">
-              <div className="shrink-0">{qr}</div>
+              <div className="shrink-0 p-2 bg-white rounded-xl border border-slate-200 shadow-xs">{qr}</div>
               <div className="min-w-0 flex-1 space-y-2">
-                <p className="text-xs text-ink-dim leading-relaxed">
-                  Have students scan with any phone camera. Each student is automatically assigned one of 10 campus roles.
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Students scan this QR code with any phone to join. Each student receives an interactive campus pass.
                 </p>
                 <div className="flex flex-col gap-1.5 pt-1">
                   <button
                     onClick={() => copy(joinUrl, "join")}
-                    className="flex items-center gap-1.5 text-xs font-bold text-cyan-glow hover:underline"
+                    className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:underline"
                   >
-                    <Copy className="h-3 w-3" />
+                    <Copy className="h-3.5 w-3.5" />
                     {copied === "join" ? "Copied direct link!" : "Copy mobile join link"}
                   </button>
                 </div>
@@ -459,8 +433,8 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
           </Panel>
 
           {/* Session Lifecycle Controls */}
-          <Panel className="p-5">
-            <SectionTitle icon={<Lock className="h-3.5 w-3.5" />}>Governance Session Controls</SectionTitle>
+          <Panel className="p-5 bg-white border border-slate-200 shadow-sm">
+            <SectionTitle icon={<Lock className="h-3.5 w-3.5 text-blue-600" />}>Session Controls</SectionTitle>
             <div className="space-y-2">
               {status === "waiting" && (
                 <Control
@@ -539,15 +513,15 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
             </div>
 
             {pending && (
-              <p className="mt-3 flex items-center gap-2 text-xs text-ink-faint">
-                <Loader2 className="h-3 w-3 animate-spin" /> syncing with server…
+              <p className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                <Loader2 className="h-3 w-3 animate-spin text-blue-600" /> syncing with server…
               </p>
             )}
           </Panel>
 
           {/* Quick links */}
-          <Panel className="p-5">
-            <SectionTitle>Display links</SectionTitle>
+          <Panel className="p-5 bg-white border border-slate-200 shadow-sm">
+            <SectionTitle>Display Links</SectionTitle>
             <div className="space-y-2">
               <LinkRow href={screenUrl} label="Projector screen" icon={<MonitorUp className="h-3.5 w-3.5" />} />
               <LinkRow href={playUrl} label="Student mobile view" icon={<Users className="h-3.5 w-3.5" />} />
@@ -562,22 +536,22 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
           {adminTab === "rbac" && (
             <>
               {/* Emergency Access Requests Queue */}
-              <Panel className="p-6">
+              <Panel className="p-6 bg-white border border-slate-200 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="grid h-8 w-8 place-items-center rounded-lg bg-amber-500/20 text-amber-400">
-                      <ShieldAlert className="h-4 w-4" />
+                    <div className="grid h-9 w-9 place-items-center rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
+                      <ShieldAlert className="h-5 w-5" />
                     </div>
                     <div>
-                      <h2 className="text-base font-bold text-white">Door Key Requests</h2>
-                      <p className="text-xs text-ink-dim">
-                        Students requesting one-time passes to restricted campus rooms
+                      <h2 className="text-base font-bold text-slate-900">Door Key Requests</h2>
+                      <p className="text-xs text-slate-500">
+                        Students requesting one-time keys to restricted campus facilities
                       </p>
                     </div>
                   </div>
                   {pendingRequests.length > 0 && (
-                    <span className="flex items-center gap-1.5 rounded-full bg-amber-500/20 px-3 py-1 text-xs font-black text-amber-400 ring-1 ring-amber-500/40 animate-pulse">
-                      <span className="h-2 w-2 rounded-full bg-amber-400" />
+                    <span className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 border border-amber-200 animate-pulse">
+                      <span className="h-2 w-2 rounded-full bg-amber-500" />
                       {pendingRequests.length} PENDING
                     </span>
                   )}
@@ -585,7 +559,7 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
 
                 <div className="mt-4">
                   {pendingRequests.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-white/10 p-6 text-center text-xs text-ink-faint">
+                    <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-500">
                       No pending door requests. When students tap locked doors on their phone and ask for a key, they will appear here.
                     </div>
                   ) : (
@@ -593,21 +567,21 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                       {pendingRequests.map((req) => (
                         <div
                           key={req.id}
-                          className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-4 transition"
+                          className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50/60 p-4 transition shadow-xs"
                         >
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-white text-sm">{req.playerNickname}</span>
-                              <span className="rounded bg-white/10 px-2 py-0.5 text-[0.65rem] font-bold text-ink-dim">
+                              <span className="font-bold text-slate-900 text-sm">{req.playerNickname}</span>
+                              <span className="rounded bg-slate-100 px-2 py-0.5 text-[0.65rem] font-bold text-slate-600">
                                 {req.playerRole}
                               </span>
-                              <span className="text-xs text-ink-faint">wants entry to</span>
-                              <span className="rounded bg-cyan-glow/15 px-2 py-0.5 text-xs font-bold text-cyan-glow">
+                              <span className="text-xs text-slate-500">wants entry to</span>
+                              <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700 border border-blue-200">
                                 {req.resourceName}
                               </span>
                             </div>
-                            <p className="mt-1.5 text-xs text-amber-200">
-                              <span className="font-bold text-amber-400">Reason:</span> &ldquo;{req.reason}&rdquo;
+                            <p className="mt-1.5 text-xs text-slate-700">
+                              <span className="font-bold text-amber-800">Reason:</span> &ldquo;{req.reason}&rdquo;
                             </p>
                           </div>
 
@@ -615,16 +589,16 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                             <button
                               onClick={() => handleResolveRequest(req.id, "reject")}
                               disabled={pending}
-                              className="flex items-center gap-1 rounded-xl bg-white/5 px-3 py-1.5 text-xs font-bold text-ink-dim ring-1 ring-white/10 hover:bg-denied/20 hover:text-denied transition"
+                              className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition"
                             >
                               <X className="h-3.5 w-3.5" /> Decline
                             </button>
                             <button
                               onClick={() => handleResolveRequest(req.id, "approve")}
                               disabled={pending}
-                              className="flex items-center gap-1.5 rounded-xl bg-granted/20 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-granted ring-1 ring-granted/40 hover:bg-granted/30 active:scale-95 transition"
+                              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition"
                             >
-                              <Check className="h-3.5 w-3.5" /> Approve 60s Key
+                              <Check className="h-3.5 w-3.5" /> Grant 60s Key
                             </button>
                           </div>
                         </div>
@@ -635,37 +609,37 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
               </Panel>
 
               {/* Campus Roster & Role Control */}
-              <Panel className="p-6">
+              <Panel className="p-6 bg-white border border-slate-200 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="grid h-8 w-8 place-items-center rounded-lg bg-cyan-glow/20 text-cyan-glow">
-                      <IdCard className="h-4 w-4" />
+                    <div className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
+                      <IdCard className="h-5 w-5" />
                     </div>
                     <div>
-                      <h2 className="text-base font-bold text-white">Students & Campus Roles</h2>
-                      <p className="text-xs text-ink-dim">
+                      <h2 className="text-base font-bold text-slate-900">Students & Campus Roles</h2>
+                      <p className="text-xs text-slate-500">
                         {connected} online of {total} admitted. Change roles or suspend badges in real time.
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 overflow-x-auto">
+                <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="border-b border-white/10 text-[0.68rem] uppercase tracking-wider text-ink-faint">
-                        <th className="pb-3 font-bold">Student</th>
-                        <th className="pb-3 font-bold">Assigned Role</th>
-                        <th className="pb-3 font-bold">Clearance</th>
-                        <th className="pb-3 font-bold">Badge Status</th>
-                        <th className="pb-3 font-bold">Change Role</th>
-                        <th className="pb-3 font-bold text-right">Access Control</th>
+                      <tr className="border-b border-slate-200 bg-slate-50 text-[0.68rem] uppercase tracking-wider text-slate-500">
+                        <th className="py-3 px-3.5 font-bold">Student</th>
+                        <th className="py-3 px-3.5 font-bold">Assigned Role</th>
+                        <th className="py-3 px-3.5 font-bold">Clearance</th>
+                        <th className="py-3 px-3.5 font-bold">Badge Status</th>
+                        <th className="py-3 px-3.5 font-bold">Change Role</th>
+                        <th className="py-3 px-3.5 font-bold text-right">Access Control</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/5">
+                    <tbody className="divide-y divide-slate-100">
                       {snap.players.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-ink-faint">
+                          <td colSpan={6} className="py-8 text-center text-slate-400">
                             No students connected yet. Have students scan the QR code to join.
                           </td>
                         </tr>
@@ -680,79 +654,79 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                             <tr
                               key={player.id}
                               className={`transition ${
-                                isRevoked ? "bg-denied/[0.05]" : "hover:bg-white/[0.02]"
+                                isRevoked ? "bg-rose-50/50" : "hover:bg-slate-50/80"
                               }`}
                             >
                               {/* Student name */}
-                              <td className="py-3">
+                              <td className="py-3.5 px-3.5">
                                 <div className="flex items-center gap-2">
                                   <span
-                                    className={`h-2 w-2 rounded-full ${
+                                    className={`h-2.5 w-2.5 rounded-full ${
                                       isPendingAdmission
                                         ? "bg-amber-400"
                                         : player.isConnected
-                                        ? "bg-granted"
-                                        : "bg-ink-faint"
+                                        ? "bg-emerald-500"
+                                        : "bg-slate-300"
                                     }`}
                                   />
-                                  <span className="font-bold text-white text-sm">{player.nickname}</span>
+                                  <span className="font-bold text-slate-900 text-sm">{player.nickname}</span>
                                   {player.isBot && (
-                                    <span className="rounded bg-violet/20 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase text-violet">
+                                    <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase text-indigo-700 border border-indigo-200">
                                       demo bot
                                     </span>
                                   )}
                                   {isPendingAdmission && (
-                                    <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[0.6rem] font-bold text-amber-300">
+                                    <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[0.6rem] font-bold text-amber-700 border border-amber-200">
                                       waiting
                                     </span>
                                   )}
                                 </div>
                                 {grants.length > 0 && (
-                                  <span className="mt-1 inline-flex items-center gap-1 text-[0.65rem] font-bold text-amber-400">
-                                    <Zap className="h-3 w-3" /> 1-Time Key Active
+                                  <span className="mt-1 inline-flex items-center gap-1 text-[0.65rem] font-bold text-amber-700">
+                                    <Zap className="h-3 w-3 text-amber-500" /> 1-Time Key Active
                                   </span>
                                 )}
                               </td>
 
                               {/* Role */}
-                              <td className="py-3 font-medium text-ink-dim">
+                              <td className="py-3.5 px-3.5 font-medium text-slate-700">
                                 {playerRole.name}
                               </td>
 
                               {/* Clearance level */}
-                              <td className="py-3">
-                                <span className="rounded bg-white/10 px-2 py-0.5 text-[0.7rem] font-bold text-cyan-glow">
+                              <td className="py-3.5 px-3.5">
+                                <span className="rounded bg-blue-50 px-2 py-0.5 text-[0.7rem] font-bold text-blue-700 border border-blue-200">
                                   Level {playerRole.level}
                                 </span>
                               </td>
 
                               {/* Badge status */}
-                              <td className="py-3">
+                              <td className="py-3.5 px-3.5">
                                 {isRevoked ? (
-                                  <span className="inline-flex items-center gap-1 rounded bg-denied/20 px-2 py-0.5 text-[0.65rem] font-black uppercase tracking-wider text-denied ring-1 ring-denied/40">
+                                  <span className="inline-flex items-center gap-1 rounded bg-rose-50 px-2 py-0.5 text-[0.65rem] font-bold text-rose-700 border border-rose-200">
                                     <ShieldAlert className="h-3 w-3" /> Suspended
                                   </span>
                                 ) : isPendingAdmission ? (
-                                  <span className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-2 py-0.5 text-[0.65rem] font-black uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/40">
+                                  <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-[0.65rem] font-bold text-amber-700 border border-amber-200">
                                     Pending
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 rounded bg-granted/20 px-2 py-0.5 text-[0.65rem] font-black uppercase tracking-wider text-granted ring-1 ring-granted/40">
+                                  <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[0.65rem] font-bold text-emerald-700 border border-emerald-200">
                                     <ShieldCheck className="h-3 w-3" /> Active
                                   </span>
                                 )}
                               </td>
 
                               {/* Role switcher dropdown */}
-                              <td className="py-3">
+                              <td className="py-3.5 px-3.5">
                                 <select
                                   value={player.roleId ?? "undergrad"}
                                   disabled={pending}
                                   onChange={(e) => handleRoleChange(player.id, e.target.value)}
-                                  className="rounded-lg bg-black/60 px-2.5 py-1.5 text-xs text-white ring-1 ring-white/15 focus:outline-none focus:ring-2 focus:ring-cyan-glow"
+                                  className="rounded-lg bg-white px-2.5 py-1.5 text-xs text-slate-800 border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
                                 >
                                   {CAMPUS_ROLES.map((r) => (
-                                    <option key={r.id} value={r.id} className="bg-neutral-900 text-white">
+                                    <option key={r.id} value={r.id}>
                                       {r.name} (L{r.level})
                                     </option>
                                   ))}
@@ -760,12 +734,12 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                               </td>
 
                               {/* Revoke / Restore button */}
-                              <td className="py-3 text-right">
+                              <td className="py-3.5 px-3.5 text-right">
                                 {isPendingAdmission ? (
                                   <button
                                     onClick={() => handleResolveAdmission(player.id, "approve")}
                                     disabled={pending}
-                                    className="rounded-lg bg-granted/20 px-3 py-1.5 text-xs font-bold text-granted ring-1 ring-granted/40 hover:bg-granted/30 transition"
+                                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
                                   >
                                     Admit Student
                                   </button>
@@ -773,10 +747,10 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                                   <button
                                     onClick={() => handleToggleRevocation(player.id)}
                                     disabled={pending}
-                                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition active:scale-95 ${
+                                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition active:scale-95 shadow-xs ${
                                       isRevoked
-                                        ? "bg-granted/20 text-granted ring-1 ring-granted/40 hover:bg-granted/30"
-                                        : "bg-denied/20 text-denied ring-1 ring-denied/40 hover:bg-denied/30"
+                                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                        : "border border-slate-200 bg-white text-slate-700 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
                                     }`}
                                   >
                                     {isRevoked ? "Restore Badge" : "Suspend Badge"}
@@ -793,28 +767,28 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
               </Panel>
 
               {/* Live Door Swipe Activity Feed */}
-              <Panel className="p-6">
+              <Panel className="p-6 bg-white border border-slate-200 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 text-cyan-glow">
+                    <div className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-slate-700 border border-slate-200">
                       <Terminal className="h-4 w-4" />
                     </div>
                     <div>
-                      <h2 className="text-base font-bold text-white">Live Door Swipe Activity</h2>
-                      <p className="text-xs text-ink-dim">
+                      <h2 className="text-base font-bold text-slate-900">Live Door Swipe Activity</h2>
+                      <p className="text-xs text-slate-500">
                         Real-time feed of participants testing doors on their mobile phones
                       </p>
                     </div>
                   </div>
 
                   {/* Filter buttons */}
-                  <div className="flex items-center gap-1.5 rounded-lg bg-black/40 p-1 ring-1 ring-white/10 text-[0.65rem] font-bold uppercase">
+                  <div className="flex items-center gap-1.5 rounded-lg bg-slate-100 p-1 border border-slate-200 text-[0.65rem] font-bold">
                     {(["all", "denials", "promotions", "emergency"] as const).map((f) => (
                       <button
                         key={f}
                         onClick={() => setAuditFilter(f)}
                         className={`rounded px-2.5 py-1 transition ${
-                          auditFilter === f ? "bg-cyan-glow/20 text-cyan-glow" : "text-ink-faint hover:text-white"
+                          auditFilter === f ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-950"
                         }`}
                       >
                         {f === "all" ? "All Activity" : f === "denials" ? "Denied Only" : f === "promotions" ? "Roles" : "Key Requests"}
@@ -823,32 +797,32 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                   </div>
                 </div>
 
-                <div className="mt-4 max-h-72 overflow-y-auto rounded-xl bg-black/40 p-3 text-xs leading-relaxed ring-1 ring-white/10">
+                <div className="mt-4 max-h-72 overflow-y-auto rounded-xl bg-slate-50 p-3 text-xs leading-relaxed border border-slate-200">
                   {auditLogs.length === 0 ? (
-                    <p className="text-center text-ink-faint py-4">No events yet. As students swipe doors or request keys, activity shows here.</p>
+                    <p className="text-center text-slate-400 py-6">No events recorded yet. As students swipe doors or request keys, activity shows here in real time.</p>
                   ) : (
                     <div className="space-y-2">
                       {auditLogs.map((log) => {
                         const time = new Date(log.timestamp).toLocaleTimeString();
-                        let badgeBg = "bg-granted/20 text-granted ring-1 ring-granted/30";
+                        let badgeBg = "bg-emerald-50 text-emerald-800 border border-emerald-200";
                         if (log.outcome === "DENIED" || log.outcome === "REVOKED" || log.outcome === "EMERGENCY_REJECTED") {
-                          badgeBg = "bg-denied/20 text-denied ring-1 ring-denied/30";
+                          badgeBg = "bg-rose-50 text-rose-800 border border-rose-200";
                         } else if (log.outcome === "PROMOTED" || log.outcome === "DEMOTED") {
-                          badgeBg = "bg-violet/20 text-violet ring-1 ring-violet/30";
+                          badgeBg = "bg-indigo-50 text-indigo-800 border border-indigo-200";
                         } else if (log.outcome === "EMERGENCY_APPROVED" || log.outcome === "ADMISSION_REQUESTED") {
-                          badgeBg = "bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/30";
+                          badgeBg = "bg-amber-50 text-amber-800 border border-amber-200";
                         }
 
                         return (
-                          <div key={log.id} className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.02] p-2 hover:bg-white/[0.04] transition">
+                          <div key={log.id} className="flex items-center justify-between gap-3 rounded-lg bg-white p-2.5 border border-slate-200/80 shadow-xs hover:border-slate-300 transition">
                             <div className="flex items-center gap-2.5 min-w-0">
                               <span className={`rounded-md px-2 py-0.5 text-[0.65rem] font-bold shrink-0 ${badgeBg}`}>
                                 {log.outcome.replace("_", " ")}
                               </span>
-                              <span className="font-semibold text-white shrink-0">{log.actor}</span>
-                              <span className="text-ink-dim truncate text-xs">{log.detail}</span>
+                              <span className="font-semibold text-slate-900 shrink-0">{log.actor}</span>
+                              <span className="text-slate-600 truncate text-xs">{log.detail}</span>
                             </div>
-                            <span className="text-ink-faint text-[0.7rem] shrink-0">{time}</span>
+                            <span className="text-slate-400 text-[0.7rem] shrink-0 font-mono">{time}</span>
                           </div>
                         );
                       })}
@@ -859,24 +833,24 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
             </>
           )}
 
-          {/* TAB 2: SCENARIOS / QUIZ (Retaining existing quiz mechanics) */}
+          {/* TAB 2: SCENARIOS / QUIZ */}
           {adminTab === "scenarios" && (
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-4">
                 <RoundTrack current={snap.currentRound || 0} total={snap.totalRounds} />
-                <Panel className="p-6" glow={status === "active"}>
+                <Panel className="p-6 bg-white border border-slate-200 shadow-sm" glow={status === "active"}>
                   {snap.scenario ? (
                     <ScenarioCard snapshot={snap} />
                   ) : (
                     <div className="py-10 text-center">
-                      <p className="text-lg font-semibold text-ink-dim">
-                        Start the game to display the first scenario.
+                      <p className="text-base font-semibold text-slate-500">
+                        Start the session using the left controls to display the first scenario.
                       </p>
                     </div>
                   )}
                 </Panel>
 
-                <Panel className="p-6">
+                <Panel className="p-6 bg-white border border-slate-200 shadow-sm">
                   {revealed && round?.reveal ? (
                     <RevealPanel reveal={round.reveal} />
                   ) : round?.status === "closed" ? (
@@ -887,8 +861,8 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                       pending={pending}
                     />
                   ) : (
-                    <div className="flex items-center gap-3 py-6 text-sm text-ink-faint">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    <div className="flex items-center gap-3 py-6 text-sm text-slate-500">
+                      <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
                       Waiting for student votes…
                     </div>
                   )}
@@ -896,19 +870,19 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
               </div>
 
               <div className="space-y-4">
-                <Panel className="p-5">
-                  <SectionTitle>Live distribution</SectionTitle>
+                <Panel className="p-5 bg-white border border-slate-200 shadow-sm">
+                  <SectionTitle>Live Vote Distribution</SectionTitle>
                   <VoteBars snapshot={snap} />
                   {msLeft !== null && round?.status === "open" && status !== "paused" && (
-                    <p className="mt-4 border-t border-white/6 pt-3 text-center text-xs text-ink-faint">
-                      <span className="tabular font-bold text-warn">{Math.ceil(msLeft / 1000)}s</span>{" "}
+                    <p className="mt-4 border-t border-slate-100 pt-3 text-center text-xs text-slate-500">
+                      <span className="tabular font-bold text-amber-700">{Math.ceil(msLeft / 1000)}s</span>{" "}
                       remaining on the clock
                     </p>
                   )}
                 </Panel>
 
-                <Panel className="p-5">
-                  <SectionTitle icon={<Trophy className="h-3.5 w-3.5" />}>Leaderboard</SectionTitle>
+                <Panel className="p-5 bg-white border border-slate-200 shadow-sm">
+                  <SectionTitle icon={<Trophy className="h-3.5 w-3.5 text-amber-500" />}>Leaderboard</SectionTitle>
                   <Leaderboard players={snap.leaderboard} limit={10} />
                 </Panel>
               </div>
@@ -937,10 +911,10 @@ function Toggle({
     <button
       onClick={onClick}
       title={`${label}: ${on ? "on" : "off"}`}
-      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[0.65rem] font-bold uppercase tracking-[0.14em] ring-1 transition ${
+      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[0.65rem] font-bold uppercase tracking-[0.14em] transition border ${
         on
-          ? "bg-cyan-glow/12 text-cyan-glow ring-cyan-glow/30"
-          : "bg-white/5 text-ink-faint ring-white/10 hover:text-ink-dim"
+          ? "bg-blue-50 text-blue-700 border-blue-200"
+          : "bg-white text-slate-600 border-slate-200 hover:text-slate-900"
       }`}
     >
       {icon}
@@ -967,21 +941,21 @@ function Control({
   danger?: boolean;
 }) {
   const tone = danger
-    ? "text-denied ring-denied/25 hover:bg-denied/12"
+    ? "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
     : primary
-      ? "bg-cyan-glow text-void ring-transparent hover:brightness-110 font-bold"
-      : "bg-white/5 text-ink ring-white/10 hover:bg-white/10";
+      ? "bg-blue-600 text-white hover:bg-blue-700 border-blue-600 shadow-sm font-bold"
+      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 shadow-xs";
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`flex w-full items-center justify-between gap-2 rounded-xl px-4 py-3 text-sm ring-1 transition select-none touch-manipulation cursor-pointer active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 ${tone}`}
+      className={`flex w-full items-center justify-between gap-2 rounded-xl px-4 py-3 text-sm border transition select-none touch-manipulation cursor-pointer active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 ${tone}`}
     >
       <span className="flex items-center gap-2 font-semibold">
         {icon}
         {label}
       </span>
-      {hint && <span className="text-[0.65rem] font-medium opacity-60">{hint}</span>}
+      {hint && <span className="text-[0.65rem] font-medium opacity-70">{hint}</span>}
     </button>
   );
 }
@@ -1004,26 +978,26 @@ function Suspense({
       className="flex flex-col items-center py-6 text-center"
     >
       <div className="relative grid h-20 w-20 place-items-center">
-        <span className="absolute inset-0 rounded-full border-2 border-violet/30" />
+        <span className="absolute inset-0 rounded-full border-2 border-indigo-200" />
         <motion.span
-          className="absolute inset-0 rounded-full border-2 border-violet"
+          className="absolute inset-0 rounded-full border-2 border-indigo-600"
           animate={{ scale: [1, 1.18], opacity: [0.7, 0] }}
           transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut" }}
         />
-        <Lock className="h-8 w-8 text-violet" />
+        <Lock className="h-8 w-8 text-indigo-600" />
       </div>
-      <p className="mt-5 text-lg font-bold">Voting is closed</p>
-      <p className="mt-1 text-sm text-ink-dim">
-        <span className="tabular font-bold text-ink">{votes}</span> of {players} players have
+      <p className="mt-5 text-lg font-bold text-slate-900">Voting is closed</p>
+      <p className="mt-1 text-sm text-slate-600">
+        <span className="tabular font-bold text-slate-900">{votes}</span> of {players} players have
         answered. Reveal when the room is ready.
       </p>
       <button
         onClick={onReveal}
         disabled={pending}
-        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-violet/12 px-6 py-3 font-bold text-violet ring-1 ring-violet/30 transition hover:bg-violet/20 disabled:opacity-50"
+        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 font-bold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
       >
         <Eye className="h-4 w-4" />
-        Reveal now
+        Reveal Now
       </button>
     </motion.div>
   );
@@ -1043,7 +1017,7 @@ function LinkRow({
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2.5 text-sm font-semibold text-ink-dim ring-1 ring-white/10 transition hover:bg-white/10 hover:text-ink"
+      className="flex items-center justify-between rounded-xl bg-slate-50 px-3.5 py-2.5 text-sm font-semibold text-slate-700 border border-slate-200 transition hover:bg-slate-100 hover:text-slate-900 shadow-xs"
     >
       <span className="flex items-center gap-2">
         {icon}

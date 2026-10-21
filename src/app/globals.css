@@ -1,106 +1,93 @@
 @import "tailwindcss";
 
 /* ==================================================================
-   CampusLock — design system
-   Near-black navy, electric cyan, semantic green/red/amber.
-   Everything below is a token; components never hardcode colours.
+   CampusLock — College Developer Design System
+   Clean, bright, human-first university portal palette.
    ================================================================== */
 
 @theme {
-  --color-void: #090d16;
-  --color-abyss: #0c1220;
-  --color-panel: #111a2e;
-  --color-panel-2: #162038;
-  --color-edge: #1e2c4a;
+  --color-void: #f8fafc;
+  --color-abyss: #ffffff;
+  --color-panel: #ffffff;
+  --color-panel-2: #f1f5f9;
+  --color-edge: #e2e8f0;
 
-  --color-cyan-glow: #38bdf8;
-  --color-cyan-deep: #0284c7;
-  --color-granted: #10b981;
-  --color-denied: #f43f5e;
-  --color-warn: #f59e0b;
-  --color-violet: #6366f1;
+  --color-cyan-glow: #2563eb;
+  --color-cyan-deep: #1d4ed8;
+  --color-granted: #059669;
+  --color-denied: #dc2626;
+  --color-warn: #d97706;
+  --color-violet: #4f46e5;
 
-  --color-ink: #f8fafc;
-  --color-ink-dim: #94a3b8;
+  --color-ink: #0f172a;
+  --color-ink-dim: #475569;
   --color-ink-faint: #64748b;
 
-  --font-display: var(--font-display), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
-  background-color: var(--color-void);
-  color: var(--color-ink);
+  background-color: #f8fafc;
+  color: #0f172a;
   font-family: var(--font-display);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overscroll-behavior-y: none;
 }
 
-/* ------------------------------------------------------------------
-   Ambient soft glow background
-   ------------------------------------------------------------------ */
+/* Clean college subtle background */
 .campuslock-bg {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(37, 99, 235, 0.05) 0%, transparent 60%);
 }
 
 .campuslock-grid {
-  background-image:
-    radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 60%),
-    radial-gradient(circle at 100% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 50%);
+  display: none;
 }
 
 .campuslock-vignette {
-  background: radial-gradient(
-    ellipse 100% 60% at 50% 0%,
-    rgba(14, 165, 233, 0.06),
-    transparent 70%
-  );
+  display: none;
 }
 
-/* ------------------------------------------------------------------
-   Surfaces
-   ------------------------------------------------------------------ */
+/* Surfaces */
 .panel {
-  background: rgba(17, 26, 46, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 16px;
-  backdrop-filter: blur(16px);
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
 }
 
 .panel-tight {
-  background: rgba(15, 23, 42, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
 }
 
 .edge-glow {
   box-shadow:
-    0 0 0 1px rgba(56, 189, 248, 0.2),
-    0 12px 40px -15px rgba(56, 189, 248, 0.25);
+    0 0 0 1px rgba(37, 99, 235, 0.2),
+    0 10px 25px -5px rgba(37, 99, 235, 0.1);
 }
 
 .hairline {
-  border-color: rgba(255, 255, 255, 0.07);
+  border-color: #e2e8f0;
 }
 
-/* ------------------------------------------------------------------
-   Typography helpers
-   ------------------------------------------------------------------ */
+/* Typography helpers */
 .label {
   font-size: 0.6875rem;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--color-ink-faint);
-  font-weight: 600;
+  color: #64748b;
+  font-weight: 700;
 }
 
 .mono {
@@ -112,9 +99,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ------------------------------------------------------------------
-   Status indicator
-   ------------------------------------------------------------------ */
+/* Status indicator */
 .pulse-dot {
   position: relative;
   display: inline-block;
@@ -134,102 +119,23 @@ body {
 @keyframes ping {
   75%,
   100% {
-    transform: scale(2.4);
+    transform: scale(2.2);
     opacity: 0;
   }
 }
 
-/* ------------------------------------------------------------------
-   Ambient keyframes
-   ------------------------------------------------------------------ */
-@keyframes sweep {
-  0% {
-    transform: translateY(-120%);
-  }
-  100% {
-    transform: translateY(520%);
-  }
-}
-
-.sweep-line {
-  animation: sweep 7s linear infinite;
-}
-
-@keyframes breathe {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-.breathe {
-  animation: breathe 2.4s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-  100% {
-    transform: translateX(200%);
-  }
-}
-
-.shimmer::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.16),
-    transparent
-  );
-  transform: translateX(-100%);
-  animation: shimmer 2.2s infinite;
-}
-
-/* ------------------------------------------------------------------
-   Reduced motion
-   Respects the OS setting AND the in-app toggle (data-reduced on <html>)
-   ------------------------------------------------------------------ */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-  }
-}
-
-html[data-reduced="true"] *,
-html[data-reduced="true"] *::before,
-html[data-reduced="true"] *::after {
-  animation-duration: 0.001ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 0.001ms !important;
-}
-
-/* ------------------------------------------------------------------
-   Scrollbars
-   ------------------------------------------------------------------ */
+/* Scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(34, 211, 238, 0.18);
+  background: #cbd5e1;
   border-radius: 9999px;
 }
-
-/* ------------------------------------------------------------------
-   Projection tuning: on very large screens everything scales up so the
-   back row can read it.
-   ------------------------------------------------------------------ */
-.screen-mode {
-  font-size: clamp(14px, 0.85vw, 20px);
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
