@@ -249,6 +249,30 @@ export async function resolveAccessRequestAction(
   }
 }
 
+export async function resolveAdmissionAction(
+  code: string,
+  playerId: string,
+  decision: "approve" | "reject",
+): Promise<ActionResult> {
+  try {
+    const hostToken = await requireHostToken(code);
+    await store().resolveAdmission(code.toUpperCase(), hostToken, playerId, decision);
+    return { ok: true };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function approveAllAdmissionsAction(code: string): Promise<ActionResult> {
+  try {
+    const hostToken = await requireHostToken(code);
+    await store().approveAllAdmissions(code.toUpperCase(), hostToken);
+    return { ok: true };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* host bootstrap (join by code, proves ownership out of band)        */
 /* ------------------------------------------------------------------ */

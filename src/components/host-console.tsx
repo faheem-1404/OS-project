@@ -45,8 +45,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 
 import {
+  approveAllAdmissionsAction,
   hostCommandAction,
   resolveAccessRequestAction,
+  resolveAdmissionAction,
   toggleUserRevocationAction,
   updateUserRoleAction,
 } from "@/app/actions";
@@ -178,8 +180,43 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
     });
   }
 
+  async function handleResolveAdmission(playerId: string, decision: "approve" | "reject") {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await resolveAdmissionAction(code, playerId, decision);
+        if (res.ok) {
+          sfx(decision === "approve" ? "granted" : "denied");
+        } else {
+          setError(res.error ?? "Failed to process admission request.");
+        }
+      } catch {
+        setError("Network error processing admission.");
+      }
+    });
+  }
+
+  async function handleApproveAllAdmissions() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await approveAllAdmissionsAction(code);
+        if (res.ok) {
+          sfx("granted");
+        } else {
+          setError(res.error ?? "Failed to admit all.");
+        }
+      } catch {
+        setError("Network error admitting all.");
+      }
+    });
+  }
+
   const connected = snap.players.filter((p) => p.isConnected).length;
   const total = snap.players.length;
+
+  // Pending student admissions
+  const pendingAdmissions = snap.players.filter((p) => p.admissionStatus === "pending");
 
   // Pending emergency requests
   const pendingRequests = (snap.accessRequests ?? []).filter((r) => r.status === "pending");
@@ -230,10 +267,15 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
               }`}
             >
               <ShieldCheck className="h-3.5 w-3.5" />
-              RBAC Command Center
+              Campus & Door Control
+              {pendingAdmissions.length > 0 && (
+                <span className="ml-1 rounded-full bg-cyan-glow px-2 py-0.5 text-[0.65rem] font-bold text-black animate-pulse">
+                  {pendingAdmissions.length} new
+                </span>
+              )}
               {pendingRequests.length > 0 && (
                 <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.2 text-[0.65rem] font-black text-black animate-pulse">
-                  {pendingRequests.length}
+                  {pendingRequests.length} key req
                 </span>
               )}
             </button>
@@ -310,6 +352,71 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
             >
               hide
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pending Student Admissions Banner */}
+      {pendingAdmissions.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-cyan-glow/30 bg-cyan-glow/[0.08] p-5 shadow-lg backdrop-blur-md">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-glow/20 text-cyan-glow">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-white">
+                  {pendingAdmissions.length} Student{pendingAdmissions.length > 1 ? "s" : ""} Waiting for Admission
+                </h2>
+                <p className="text-xs text-ink-dim">
+                  These participants scanned the QR code and are requesting entry to the session.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleApproveAllAdmissions}
+              disabled={pending}
+              className="flex items-center gap-2 rounded-xl bg-granted px-4 py-2 text-xs font-bold text-black shadow-md transition hover:brightness-110 active:scale-95"
+            >
+              <Check className="h-4 w-4" />
+              Admit All ({pendingAdmissions.length})
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {pendingAdmissions.map((player) => {
+              const pRole = getRole(player.roleId ?? "undergrad");
+              return (
+                <div
+                  key={player.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/40 p-3"
+                >
+                  <div>
+                    <p className="font-bold text-white text-sm">{player.nickname}</p>
+                    <p className="text-xs text-ink-dim">
+                      Role: <span className="text-cyan-glow font-medium">{pRole.name}</span>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleResolveAdmission(player.id, "reject")}
+                      disabled={pending}
+                      className="rounded-lg bg-white/5 px-2.5 py-1.5 text-xs font-semibold text-ink-dim hover:bg-denied/20 hover:text-denied transition"
+                      title="Decline entry"
+                    >
+                      Decline
+                    </button>
+                    <button
+                      onClick={() => handleResolveAdmission(player.id, "approve")}
+                      disabled={pending}
+                      className="rounded-lg bg-granted/20 px-3 py-1.5 text-xs font-bold text-granted ring-1 ring-granted/30 hover:bg-granted/30 transition"
+                    >
+                      Admit
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -462,16 +569,16 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                       <ShieldAlert className="h-4 w-4" />
                     </div>
                     <div>
-                      <h2 className="text-base font-bold text-white">Emergency Access Approvals</h2>
+                      <h2 className="text-base font-bold text-white">Door Key Requests</h2>
                       <p className="text-xs text-ink-dim">
-                        Real-time privilege escalation petitions from students at campus doors
+                        Students requesting one-time passes to restricted campus rooms
                       </p>
                     </div>
                   </div>
                   {pendingRequests.length > 0 && (
                     <span className="flex items-center gap-1.5 rounded-full bg-amber-500/20 px-3 py-1 text-xs font-black text-amber-400 ring-1 ring-amber-500/40 animate-pulse">
                       <span className="h-2 w-2 rounded-full bg-amber-400" />
-                      {pendingRequests.length} PENDING ACTION
+                      {pendingRequests.length} PENDING
                     </span>
                   )}
                 </div>
@@ -479,7 +586,7 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                 <div className="mt-4">
                   {pendingRequests.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-white/10 p-6 text-center text-xs text-ink-faint">
-                      No pending emergency elevation requests. When students attempt to enter restricted doors without clearance, their petitions will stream here.
+                      No pending door requests. When students tap locked doors on their phone and ask for a key, they will appear here.
                     </div>
                   ) : (
                     <div className="grid gap-3">
@@ -508,16 +615,16 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                             <button
                               onClick={() => handleResolveRequest(req.id, "reject")}
                               disabled={pending}
-                              className="flex items-center gap-1 rounded-xl bg-white/5 px-3 py-1.5 text-xs font-bold text-ink-dim ring-1 ring-white/10 hover:bg-denied/20 hover:text-denied"
+                              className="flex items-center gap-1 rounded-xl bg-white/5 px-3 py-1.5 text-xs font-bold text-ink-dim ring-1 ring-white/10 hover:bg-denied/20 hover:text-denied transition"
                             >
-                              <X className="h-3.5 w-3.5" /> Deny
+                              <X className="h-3.5 w-3.5" /> Decline
                             </button>
                             <button
                               onClick={() => handleResolveRequest(req.id, "approve")}
                               disabled={pending}
-                              className="flex items-center gap-1.5 rounded-xl bg-granted/20 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-granted ring-1 ring-granted/40 hover:bg-granted/30 active:scale-95"
+                              className="flex items-center gap-1.5 rounded-xl bg-granted/20 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-granted ring-1 ring-granted/40 hover:bg-granted/30 active:scale-95 transition"
                             >
-                              <Check className="h-3.5 w-3.5" /> Approve 60s Pass
+                              <Check className="h-3.5 w-3.5" /> Approve 60s Key
                             </button>
                           </div>
                         </div>
@@ -527,7 +634,7 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                 </div>
               </Panel>
 
-              {/* Campus Identity Matrix (Player Roster & Privilege Control) */}
+              {/* Campus Roster & Role Control */}
               <Panel className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
@@ -535,9 +642,9 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                       <IdCard className="h-4 w-4" />
                     </div>
                     <div>
-                      <h2 className="text-base font-bold text-white">Campus Identity & RBAC Matrix</h2>
+                      <h2 className="text-base font-bold text-white">Students & Campus Roles</h2>
                       <p className="text-xs text-ink-dim">
-                        Live connected students ({connected} online of {total} joined). Change roles or revoke credentials instantly.
+                        {connected} online of {total} admitted. Change roles or suspend badges in real time.
                       </p>
                     </div>
                   </div>
@@ -547,25 +654,26 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-white/10 text-[0.68rem] uppercase tracking-wider text-ink-faint">
-                        <th className="pb-3 font-bold">Student / Identity</th>
-                        <th className="pb-3 font-bold">Current Assigned Role</th>
+                        <th className="pb-3 font-bold">Student</th>
+                        <th className="pb-3 font-bold">Assigned Role</th>
                         <th className="pb-3 font-bold">Clearance</th>
                         <th className="pb-3 font-bold">Badge Status</th>
-                        <th className="pb-3 font-bold">Promote / Demote</th>
-                        <th className="pb-3 font-bold text-right">Zero-Trust Action</th>
+                        <th className="pb-3 font-bold">Change Role</th>
+                        <th className="pb-3 font-bold text-right">Access Control</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
                       {snap.players.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="py-8 text-center text-ink-faint">
-                            No students connected yet. Students scan the QR code to join and receive their initial role.
+                            No students connected yet. Have students scan the QR code to join.
                           </td>
                         </tr>
                       ) : (
                         snap.players.map((player) => {
                           const playerRole = getRole(player.roleId ?? "undergrad");
                           const isRevoked = player.badgeStatus === "revoked";
+                          const isPendingAdmission = player.admissionStatus === "pending";
                           const grants = (player.temporaryGrants ?? []).filter((g) => g.expiresAt > Date.now());
 
                           return (
@@ -580,19 +688,28 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                                 <div className="flex items-center gap-2">
                                   <span
                                     className={`h-2 w-2 rounded-full ${
-                                      player.isConnected ? "bg-granted" : "bg-ink-faint"
+                                      isPendingAdmission
+                                        ? "bg-amber-400"
+                                        : player.isConnected
+                                        ? "bg-granted"
+                                        : "bg-ink-faint"
                                     }`}
                                   />
                                   <span className="font-bold text-white text-sm">{player.nickname}</span>
                                   {player.isBot && (
                                     <span className="rounded bg-violet/20 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase text-violet">
-                                      bot
+                                      demo bot
+                                    </span>
+                                  )}
+                                  {isPendingAdmission && (
+                                    <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[0.6rem] font-bold text-amber-300">
+                                      waiting
                                     </span>
                                   )}
                                 </div>
                                 {grants.length > 0 && (
                                   <span className="mt-1 inline-flex items-center gap-1 text-[0.65rem] font-bold text-amber-400">
-                                    <Zap className="h-3 w-3" /> Emergency Pass Active
+                                    <Zap className="h-3 w-3" /> 1-Time Key Active
                                   </span>
                                 )}
                               </td>
@@ -613,7 +730,11 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                               <td className="py-3">
                                 {isRevoked ? (
                                   <span className="inline-flex items-center gap-1 rounded bg-denied/20 px-2 py-0.5 text-[0.65rem] font-black uppercase tracking-wider text-denied ring-1 ring-denied/40">
-                                    <ShieldAlert className="h-3 w-3" /> Revoked
+                                    <ShieldAlert className="h-3 w-3" /> Suspended
+                                  </span>
+                                ) : isPendingAdmission ? (
+                                  <span className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-2 py-0.5 text-[0.65rem] font-black uppercase tracking-wider text-amber-300 ring-1 ring-amber-500/40">
+                                    Pending
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 rounded bg-granted/20 px-2 py-0.5 text-[0.65rem] font-black uppercase tracking-wider text-granted ring-1 ring-granted/40">
@@ -640,17 +761,27 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
 
                               {/* Revoke / Restore button */}
                               <td className="py-3 text-right">
-                                <button
-                                  onClick={() => handleToggleRevocation(player.id)}
-                                  disabled={pending}
-                                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition active:scale-95 ${
-                                    isRevoked
-                                      ? "bg-granted/20 text-granted ring-1 ring-granted/40 hover:bg-granted/30"
-                                      : "bg-denied/20 text-denied ring-1 ring-denied/40 hover:bg-denied/30"
-                                  }`}
-                                >
-                                  {isRevoked ? "Restore Badge" : "Revoke Badge"}
-                                </button>
+                                {isPendingAdmission ? (
+                                  <button
+                                    onClick={() => handleResolveAdmission(player.id, "approve")}
+                                    disabled={pending}
+                                    className="rounded-lg bg-granted/20 px-3 py-1.5 text-xs font-bold text-granted ring-1 ring-granted/40 hover:bg-granted/30 transition"
+                                  >
+                                    Admit Student
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleToggleRevocation(player.id)}
+                                    disabled={pending}
+                                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition active:scale-95 ${
+                                      isRevoked
+                                        ? "bg-granted/20 text-granted ring-1 ring-granted/40 hover:bg-granted/30"
+                                        : "bg-denied/20 text-denied ring-1 ring-denied/40 hover:bg-denied/30"
+                                    }`}
+                                  >
+                                    {isRevoked ? "Restore Badge" : "Suspend Badge"}
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           );
@@ -661,7 +792,7 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                 </div>
               </Panel>
 
-              {/* Live SIEM Security Audit Terminal */}
+              {/* Live Door Swipe Activity Feed */}
               <Panel className="p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
@@ -669,9 +800,9 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                       <Terminal className="h-4 w-4" />
                     </div>
                     <div>
-                      <h2 className="text-base font-bold text-white">Live SIEM Audit Terminal</h2>
+                      <h2 className="text-base font-bold text-white">Live Door Swipe Activity</h2>
                       <p className="text-xs text-ink-dim">
-                        Authoritative append-only access control logging & policy evaluation trace
+                        Real-time feed of participants testing doors on their mobile phones
                       </p>
                     </div>
                   </div>
@@ -686,36 +817,38 @@ export function HostConsole({ initial, joinUrl, qr, screenUrl, playUrl }: Props)
                           auditFilter === f ? "bg-cyan-glow/20 text-cyan-glow" : "text-ink-faint hover:text-white"
                         }`}
                       >
-                        {f}
+                        {f === "all" ? "All Activity" : f === "denials" ? "Denied Only" : f === "promotions" ? "Roles" : "Key Requests"}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <div className="mt-4 max-h-72 overflow-y-auto rounded-xl bg-black/60 p-3.5 font-mono text-[0.72rem] leading-relaxed ring-1 ring-white/10">
+                <div className="mt-4 max-h-72 overflow-y-auto rounded-xl bg-black/40 p-3 text-xs leading-relaxed ring-1 ring-white/10">
                   {auditLogs.length === 0 ? (
-                    <p className="text-center text-ink-faint py-4">No audit logs matching this filter.</p>
+                    <p className="text-center text-ink-faint py-4">No events yet. As students swipe doors or request keys, activity shows here.</p>
                   ) : (
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       {auditLogs.map((log) => {
                         const time = new Date(log.timestamp).toLocaleTimeString();
-                        let outcomeColor = "text-granted";
+                        let badgeBg = "bg-granted/20 text-granted ring-1 ring-granted/30";
                         if (log.outcome === "DENIED" || log.outcome === "REVOKED" || log.outcome === "EMERGENCY_REJECTED") {
-                          outcomeColor = "text-denied";
+                          badgeBg = "bg-denied/20 text-denied ring-1 ring-denied/30";
                         } else if (log.outcome === "PROMOTED" || log.outcome === "DEMOTED") {
-                          outcomeColor = "text-violet";
-                        } else if (log.outcome === "EMERGENCY_APPROVED") {
-                          outcomeColor = "text-amber-400";
+                          badgeBg = "bg-violet/20 text-violet ring-1 ring-violet/30";
+                        } else if (log.outcome === "EMERGENCY_APPROVED" || log.outcome === "ADMISSION_REQUESTED") {
+                          badgeBg = "bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/30";
                         }
 
                         return (
-                          <div key={log.id} className="flex items-start gap-2 border-b border-white/[0.04] pb-1">
-                            <span className="text-ink-faint shrink-0">[{time}]</span>
-                            <span className="text-cyan-glow font-bold shrink-0">{log.actor}:</span>
-                            <span className={`font-bold uppercase shrink-0 ${outcomeColor}`}>
-                              [{log.outcome}]
-                            </span>
-                            <span className="text-ink-dim flex-1">{log.detail}</span>
+                          <div key={log.id} className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.02] p-2 hover:bg-white/[0.04] transition">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className={`rounded-md px-2 py-0.5 text-[0.65rem] font-bold shrink-0 ${badgeBg}`}>
+                                {log.outcome.replace("_", " ")}
+                              </span>
+                              <span className="font-semibold text-white shrink-0">{log.actor}</span>
+                              <span className="text-ink-dim truncate text-xs">{log.detail}</span>
+                            </div>
+                            <span className="text-ink-faint text-[0.7rem] shrink-0">{time}</span>
                           </div>
                         );
                       })}

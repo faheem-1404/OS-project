@@ -51,6 +51,7 @@ interface PlayerRecord {
   roleId: string;
   badgeStatus: "active" | "revoked";
   temporaryGrants: TemporaryGrantRecord[];
+  admissionStatus: "pending" | "approved" | "rejected";
 }
 
 interface VoteRecord {
@@ -395,6 +396,7 @@ export class LocalStore {
         roleId: role.id,
         badgeStatus: "active",
         temporaryGrants: [],
+        admissionStatus: "approved",
       };
       room.players.push(player);
       this.castBotVote(room, player);
@@ -717,6 +719,62 @@ export class LocalStore {
     emit(room.code);
   }
 
+  async resolveAdmission(
+    code: string,
+    hostToken: string,
+    playerId: string,
+    decision: "approve" | "reject",
+  ): Promise<void> {
+    const room = this.requireHost(code, hostToken);
+
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player) throw new GameError(NOT_FOUND, 404);
+
+    player.admissionStatus = decision === "approve" ? "approved" : "rejected";
+
+    if (!room.auditLogs) room.auditLogs = [];
+    room.auditLogs.unshift({
+      id: randomUUID(),
+      timestamp: Date.now(),
+      actor: "Security Host",
+      action: "ADMISSION_DECISION",
+      outcome: decision === "approve" ? "ADMISSION_APPROVED" : "ADMISSION_REJECTED",
+      detail: `${player.nickname}'s campus entry was ${decision === "approve" ? "approved" : "declined"}.`,
+    });
+    if (room.auditLogs.length > 100) room.auditLogs.pop();
+
+    scheduleSave();
+    emit(room.code);
+  }
+
+  async approveAllAdmissions(code: string, hostToken: string): Promise<void> {
+    const room = this.requireHost(code, hostToken);
+
+    let count = 0;
+    for (const p of room.players) {
+      if (p.admissionStatus === "pending") {
+        p.admissionStatus = "approved";
+        count++;
+      }
+    }
+
+    if (count > 0) {
+      if (!room.auditLogs) room.auditLogs = [];
+      room.auditLogs.unshift({
+        id: randomUUID(),
+        timestamp: Date.now(),
+        actor: "Security Host",
+        action: "BATCH_ADMISSION",
+        outcome: "ADMISSION_APPROVED",
+        detail: `Host approved admission for ${count} student(s).`,
+      });
+      if (room.auditLogs.length > 100) room.auditLogs.pop();
+    }
+
+    scheduleSave();
+    emit(room.code);
+  }
+
   /* --------------------------- player ops -------------------------- */
 
   async join(code: string, nicknameRaw: string): Promise<{
@@ -754,6 +812,7 @@ export class LocalStore {
       roleId: role.id,
       badgeStatus: "active",
       temporaryGrants: [],
+      admissionStatus: "pending",
     };
     room.players.push(player);
     if (!room.auditLogs) room.auditLogs = [];
@@ -1035,6 +1094,7 @@ export class LocalStore {
       roleId: p.roleId ?? "undergrad",
       badgeStatus: p.badgeStatus ?? "active",
       temporaryGrants: (p.temporaryGrants ?? []).filter((g) => g.expiresAt > now),
+      admissionStatus: p.admissionStatus ?? "approved",
     }));
 
     const leaderboard = [...players].sort((a, b) => {

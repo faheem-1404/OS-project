@@ -122,6 +122,7 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
     roleId: snap.me?.roleId ?? "undergrad",
     badgeStatus: snap.me?.badgeStatus ?? "active",
     temporaryGrants: snap.me?.temporaryGrants ?? [],
+    admissionStatus: snap.me?.admissionStatus ?? "approved",
   };
 
   const role = getRole(mePlayer.roleId);
@@ -253,13 +254,13 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
       );
       if (res.ok) {
         setEmergencyNotice(
-          "Emergency elevation request submitted to Security Administrator. Awaiting approval.",
+          "Door key request sent to session host. Awaiting approval.",
         );
         setEmergencyModalResource(null);
         setEmergencyReason("");
         sfx("lock");
       } else {
-        setError(res.error ?? "Could not submit emergency request.");
+        setError(res.error ?? "Could not submit door key request.");
       }
     } catch {
       setError("Network error. Please try again.");
@@ -271,6 +272,86 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
   async function leave() {
     await leaveRoomAction(snap.code);
     router.push("/");
+  }
+
+  /* -------------------- ADMISSION GATING SCREENS -------------------- */
+  if (mePlayer.admissionStatus === "pending") {
+    return (
+      <main className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col justify-center px-5 py-12 text-center">
+        <div className="rounded-3xl border border-white/10 bg-panel p-8 shadow-2xl backdrop-blur-xl">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-glow/10 text-cyan-glow ring-1 ring-cyan-glow/30">
+            <Clock className="h-8 w-8 animate-pulse" />
+          </div>
+
+          <span className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300 ring-1 ring-amber-500/30">
+            <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
+            Waiting for Host to Admit You
+          </span>
+
+          <h1 className="mt-4 text-2xl font-bold tracking-tight text-white">
+            Hi, {mePlayer.nickname}!
+          </h1>
+
+          <p className="mt-2 text-sm leading-relaxed text-ink-dim">
+            Your admission request has been sent to the host. Please keep this screen open while the host approves your entry.
+          </p>
+
+          <div className="mt-6 rounded-2xl bg-white/[0.03] p-4 text-left ring-1 ring-white/10 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-ink-faint">Room Code</span>
+              <span className="font-mono font-bold tracking-wider text-cyan-glow">{snap.code}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-ink-faint">Assigned Role</span>
+              <span className="font-bold text-white">{role.name} (Level {role.level})</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-ink-faint">Status</span>
+              <span className="font-bold text-amber-300">Pending Host Admission</span>
+            </div>
+          </div>
+
+          <p className="mt-5 text-xs text-ink-faint">
+            Once admitted, your campus pass and interactive doors will unlock automatically.
+          </p>
+
+          <button
+            onClick={leave}
+            className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-ink-dim hover:bg-white/10 hover:text-white transition"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Change Nickname / Cancel
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (mePlayer.admissionStatus === "rejected") {
+    return (
+      <main className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col justify-center px-5 py-12 text-center">
+        <div className="rounded-3xl border border-denied/30 bg-panel p-8 shadow-2xl backdrop-blur-xl">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-denied/15 text-denied ring-1 ring-denied/30">
+            <ShieldAlert className="h-8 w-8" />
+          </div>
+
+          <h1 className="mt-6 text-2xl font-bold tracking-tight text-white">
+            Admission Declined
+          </h1>
+
+          <p className="mt-2 text-sm leading-relaxed text-ink-dim">
+            The host declined this entry request for room <strong className="text-white">{snap.code}</strong>.
+          </p>
+
+          <button
+            onClick={leave}
+            className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
+          >
+            Return to Join Screen
+          </button>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -359,115 +440,104 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
           )}
         </AnimatePresence>
 
-        {/* -------------------- TAB 1: CAMPUS ID & DOORS -------------------- */}
+        {/* -------------------- TAB 1: CAMPUS PASS & DOORS -------------------- */}
         {activeTab === "arena" && (
           <div className="mt-4 space-y-4">
-            {/* Holographic Campus ID Badge */}
+            {/* Modern Campus ID Card */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`relative overflow-hidden rounded-2xl border p-5 shadow-2xl transition-all ${
+              className={`relative overflow-hidden rounded-3xl border p-6 shadow-xl transition-all ${
                 isRevoked
-                  ? "border-denied/40 bg-gradient-to-br from-denied/20 via-black to-denied/10"
-                  : "border-cyan-glow/30 bg-gradient-to-br from-white/[0.08] via-black to-cyan-glow/10"
+                  ? "border-denied/30 bg-gradient-to-br from-denied/10 via-panel to-panel"
+                  : "border-white/10 bg-gradient-to-br from-panel-2 via-panel to-panel"
               }`}
             >
-              {/* Holographic background sheen */}
-              <div className="pointer-events-none absolute -inset-x-20 -top-20 h-40 bg-gradient-to-r from-transparent via-cyan-glow/10 to-transparent blur-2xl" />
-
-              <div className="relative z-10">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/10 ring-1 ring-white/20">
-                      <ShieldCheck className="h-5 w-5 text-cyan-glow" />
-                    </div>
-                    <div>
-                      <p className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-ink-faint">
-                        Smart Campus Identity
-                      </p>
-                      <h2 className="text-xl font-black tracking-tight text-white">
-                        {mePlayer.nickname}
-                      </h2>
-                    </div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3.5">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-glow/15 text-cyan-glow font-bold text-lg ring-1 ring-cyan-glow/30">
+                    {mePlayer.nickname.slice(0, 2).toUpperCase()}
                   </div>
-
-                  {/* Status Pill */}
-                  {isRevoked ? (
-                    <span className="flex items-center gap-1.5 rounded-full bg-denied/20 px-3 py-1 text-[0.68rem] font-black uppercase tracking-wider text-denied ring-1 ring-denied/40 animate-pulse">
-                      <ShieldAlert className="h-3 w-3" /> Revoked
+                  <div>
+                    <span className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-ink-faint">
+                      Digital Campus Pass
                     </span>
-                  ) : (
-                    <span className="flex items-center gap-1.5 rounded-full bg-granted/20 px-3 py-1 text-[0.68rem] font-black uppercase tracking-wider text-granted ring-1 ring-granted/40">
-                      <span className="h-1.5 w-1.5 rounded-full bg-granted animate-ping" />
-                      Active
-                    </span>
-                  )}
+                    <h2 className="text-2xl font-bold tracking-tight text-white">
+                      {mePlayer.nickname}
+                    </h2>
+                  </div>
                 </div>
 
-                {/* Role & Clearance bar */}
-                <div className="mt-4 rounded-xl bg-black/40 p-3 ring-1 ring-white/10">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-[0.6rem] uppercase tracking-wider text-ink-faint">Assigned Role</p>
-                      <p className="font-bold text-white">{role.name}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="inline-block rounded-lg bg-cyan-glow/15 px-2.5 py-1 text-xs font-black tracking-wider text-cyan-glow ring-1 ring-cyan-glow/30">
-                        Level {role.level}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="mt-2 text-xs leading-relaxed text-ink-dim">
-                    {role.description}
-                  </p>
-                </div>
-
-                {/* Revoked Warning Banner */}
-                {isRevoked && (
-                  <div className="mt-3 flex items-start gap-2.5 rounded-xl bg-denied/15 p-3 text-xs text-denied ring-1 ring-denied/30">
-                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold">Zero-Trust Credential Suspension</p>
-                      <p className="text-[0.72rem] text-denied/90">
-                        The IT Administrator has suspended your badge privileges. All physical and logical facility access is denied until reinstated.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Active Temporary Passes */}
-                {activeGrants.length > 0 && (
-                  <div className="mt-3 rounded-xl bg-amber-500/15 p-3 ring-1 ring-amber-500/30">
-                    <p className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
-                      <Zap className="h-3.5 w-3.5" /> Active Emergency Elevations:
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap gap-2">
-                      {activeGrants.map((g) => {
-                        const sec = Math.max(0, Math.ceil((g.expiresAt - now) / 1000));
-                        return (
-                          <span
-                            key={g.resourceId}
-                            className="rounded-lg bg-black/40 px-2 py-1 text-[0.7rem] font-bold text-amber-200 ring-1 ring-amber-500/40"
-                          >
-                            {CAMPUS_RESOURCES.find((r) => r.id === g.resourceId)?.name ?? g.resourceId} ({sec}s)
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
+                {isRevoked ? (
+                  <span className="flex items-center gap-1.5 rounded-full bg-denied/20 px-3 py-1 text-xs font-bold text-denied ring-1 ring-denied/40">
+                    <ShieldAlert className="h-3.5 w-3.5" /> Suspended
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 rounded-full bg-granted/20 px-3 py-1 text-xs font-bold text-granted ring-1 ring-granted/40">
+                    <span className="h-2 w-2 rounded-full bg-granted animate-pulse" /> Active Pass
+                  </span>
                 )}
               </div>
+
+              {/* Role & clearance summary */}
+              <div className="mt-5 rounded-2xl bg-black/40 p-4 ring-1 ring-white/5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-ink-faint">Assigned Role</p>
+                    <p className="font-bold text-white text-base">{role.name}</p>
+                  </div>
+                  <span className="rounded-xl bg-cyan-glow/15 px-3 py-1 text-xs font-bold text-cyan-glow ring-1 ring-cyan-glow/30">
+                    Clearance Level {role.level}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-ink-dim leading-relaxed">
+                  {role.description}
+                </p>
+              </div>
+
+              {isRevoked && (
+                <div className="mt-3.5 flex items-start gap-2.5 rounded-xl bg-denied/15 p-3.5 text-xs text-denied ring-1 ring-denied/30">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Pass Suspended by Host</p>
+                    <p className="text-[0.75rem] text-denied/90 mt-0.5">
+                      Your access has been temporarily turned off. All doors will remain locked until the host restores your badge.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {activeGrants.length > 0 && (
+                <div className="mt-3.5 rounded-xl bg-amber-500/15 p-3.5 ring-1 ring-amber-500/30">
+                  <p className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
+                    <Zap className="h-3.5 w-3.5" /> Temporary Door Key Active:
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    {activeGrants.map((g) => {
+                      const sec = Math.max(0, Math.ceil((g.expiresAt - now) / 1000));
+                      return (
+                        <span
+                          key={g.resourceId}
+                          className="rounded-lg bg-black/50 px-2.5 py-1 text-xs font-bold text-amber-200 ring-1 ring-amber-500/40"
+                        >
+                          {CAMPUS_RESOURCES.find((r) => r.id === g.resourceId)?.name ?? g.resourceId} ({sec}s remaining)
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </motion.div>
 
-            {/* Door Swipe Arena */}
+            {/* Campus Doors list */}
             <div>
               <div className="flex items-center justify-between px-1">
-                <SectionTitle icon={<DoorOpen className="h-3.5 w-3.5" />}>
-                  Campus Checkpoint Doors
-                </SectionTitle>
-                <span className="text-[0.65rem] uppercase tracking-wider text-ink-faint">
-                  Swipe Badge to Test Access
-                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <DoorOpen className="h-4 w-4 text-cyan-glow" /> Campus Doors & Rooms
+                  </h3>
+                  <p className="text-xs text-ink-dim">Tap any door below to test your badge access</p>
+                </div>
               </div>
 
               <div className="mt-3 grid gap-3">
@@ -477,7 +547,6 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                   const hasEmergencyGrant = activeGrants.some((g) => g.resourceId === resource.id);
                   const isRolePermitted = role.allowedResources.includes(resource.id);
 
-                  // Pending request check
                   const hasPendingRequest = snap.accessRequests?.some(
                     (r) => r.playerId === mePlayer.id && r.resourceId === resource.id && r.status === "pending"
                   );
@@ -488,16 +557,16 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                       layout
                       className={`relative overflow-hidden rounded-2xl border p-4 transition ${
                         resultForThis?.granted
-                          ? "border-granted/50 bg-granted/[0.07]"
+                          ? "border-granted/50 bg-granted/[0.08]"
                           : resultForThis?.granted === false
-                          ? "border-denied/50 bg-denied/[0.07]"
-                          : "border-white/10 bg-white/[0.03] hover:border-white/20"
+                          ? "border-denied/50 bg-denied/[0.08]"
+                          : "border-white/10 bg-panel hover:border-white/20"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3">
                           <div
-                            className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                               resultForThis?.granted || (isRolePermitted && !isRevoked)
                                 ? "bg-cyan-glow/15 text-cyan-glow ring-1 ring-cyan-glow/30"
                                 : "bg-white/5 text-ink-dim ring-1 ring-white/10"
@@ -507,26 +576,23 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-bold text-white">{resource.name}</h3>
-                              <span className="rounded bg-white/10 px-1.5 py-0.5 text-[0.6rem] font-bold uppercase text-ink-dim">
+                              <h4 className="text-sm font-bold text-white">{resource.name}</h4>
+                              <span className="rounded bg-white/10 px-2 py-0.5 text-[0.65rem] font-semibold text-ink-dim">
                                 {resource.category}
                               </span>
                             </div>
                             <p className="mt-1 text-xs text-ink-dim leading-relaxed">
                               {resource.description}
                             </p>
-                            <p className="mt-1 text-[0.7rem] font-medium text-ink-faint">
-                              <span className="text-ink-dim">Policy:</span> {resource.policyRule}
-                            </p>
                           </div>
                         </div>
 
-                        <span className="shrink-0 rounded-lg bg-black/40 px-2 py-1 text-[0.65rem] font-black tracking-wider text-ink-dim ring-1 ring-white/10">
-                          Req L{resource.minLevel}
+                        <span className="shrink-0 rounded-lg bg-black/40 px-2.5 py-1 text-[0.65rem] font-bold text-ink-dim ring-1 ring-white/10">
+                          Requires L{resource.minLevel}
                         </span>
                       </div>
 
-                      {/* Result callout if just scanned */}
+                      {/* Result callout */}
                       <AnimatePresence>
                         {resultForThis && (
                           <motion.div
@@ -542,72 +608,54 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                             <div className="flex items-center gap-2 font-bold">
                               {resultForThis.granted ? (
                                 <>
-                                  <DoorOpen className="h-4 w-4" /> ACCESS GRANTED
+                                  <DoorOpen className="h-4 w-4" /> Door Unlocked • Access Granted
                                 </>
                               ) : (
                                 <>
-                                  <DoorClosed className="h-4 w-4" /> ACCESS DENIED
+                                  <DoorClosed className="h-4 w-4" /> Locked • Access Denied
                                 </>
                               )}
                             </div>
-                            <p className="mt-1 text-[0.72rem] opacity-90">{resultForThis.reason}</p>
+                            <p className="mt-1 text-xs opacity-90">{resultForThis.reason}</p>
                           </motion.div>
                         )}
                       </AnimatePresence>
 
                       {/* Action Bar */}
                       <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-white/5 pt-3">
-                        <div className="flex items-center gap-1.5">
-                          {hasEmergencyGrant ? (
-                            <span className="flex items-center gap-1 text-[0.68rem] font-bold text-amber-400">
-                              <Zap className="h-3 w-3" /> Emergency Pass Active
-                            </span>
-                          ) : hasPendingRequest ? (
-                            <span className="flex items-center gap-1 text-[0.68rem] font-bold text-cyan-glow">
-                              <Clock className="h-3 w-3 animate-spin" /> Admin Review Pending
+                        <button
+                          onClick={() => handleSwipeDoor(resource.id)}
+                          disabled={isScanning}
+                          className="flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-xs font-bold text-white transition hover:bg-white/15 active:scale-95 disabled:opacity-50"
+                        >
+                          {isScanning ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Verifying…
+                            </>
+                          ) : (
+                            <>
+                              <IdCard className="h-3.5 w-3.5 text-cyan-glow" /> Tap Badge to Enter
+                            </>
+                          )}
+                        </button>
+
+                        {!isRolePermitted && !hasEmergencyGrant && (
+                          hasPendingRequest ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-300 ring-1 ring-amber-500/25">
+                              <Hourglass className="h-3.5 w-3.5 animate-spin" /> Request Pending
                             </span>
                           ) : (
-                            <span className="text-[0.68rem] text-ink-faint">
-                              Status: {isRevoked ? "Lockdown" : isRolePermitted ? "Standard Clearance" : "Elevated Only"}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {/* Request Elevation button if not authorized or revoked */}
-                          {(!isRolePermitted || isRevoked) && !hasEmergencyGrant && !hasPendingRequest && (
                             <button
                               onClick={() => {
                                 setEmergencyModalResource(resource.id);
-                                setScanResult(null);
+                                setEmergencyReason("");
                               }}
-                              className="rounded-xl bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-300 ring-1 ring-amber-500/30 transition hover:bg-amber-500/20 active:scale-95"
+                              className="flex items-center gap-1.5 rounded-xl bg-amber-500/15 px-3 py-1.5 text-xs font-bold text-amber-300 ring-1 ring-amber-500/30 hover:bg-amber-500/25 transition"
                             >
-                              Request Pass
+                              <Key className="h-3.5 w-3.5" /> Request Door Key
                             </button>
-                          )}
-
-                          {/* Swipe button */}
-                          <button
-                            onClick={() => handleSwipeDoor(resource.id)}
-                            disabled={isScanning}
-                            className={`flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition active:scale-95 ${
-                              isScanning
-                                ? "bg-white/10 text-ink-dim"
-                                : "bg-cyan-glow/20 text-cyan-glow ring-1 ring-cyan-glow/40 hover:bg-cyan-glow/30"
-                            }`}
-                          >
-                            {isScanning ? (
-                              <>
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Swiping…
-                              </>
-                            ) : (
-                              <>
-                                <Key className="h-3.5 w-3.5" /> Swipe Badge
-                              </>
-                            )}
-                          </button>
-                        </div>
+                          )
+                        )}
                       </div>
                     </motion.div>
                   );
@@ -774,33 +822,33 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                     <ShieldAlert className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-white text-base">Request Emergency Elevation</h3>
+                    <h3 className="font-bold text-white text-base">Request Door Key</h3>
                     <p className="text-xs text-ink-dim">
-                      Target: {CAMPUS_RESOURCES.find((r) => r.id === emergencyModalResource)?.name}
+                      Room: {CAMPUS_RESOURCES.find((r) => r.id === emergencyModalResource)?.name}
                     </p>
                   </div>
                 </div>
 
                 <p className="mt-3 text-xs leading-relaxed text-ink-dim">
-                  Your current role ({role.name}) does not hold standard clearance for this checkpoint. Submit a temporary elevation petition to the Administrator console.
+                  Your current role ({role.name}) does not have standard clearance for this room. Send a quick note to the host to request a 60-second access key.
                 </p>
 
                 <div className="mt-4">
                   <label className="text-[0.7rem] font-bold uppercase tracking-wider text-ink-faint">
-                    Justification / Purpose
+                    Reason for entry
                   </label>
                   <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                     {[
-                      "Urgent server hardware fix",
-                      "Exam grade emergency audit",
-                      "Thesis GPU experiment",
-                      "Escorted vendor maintenance",
+                      "Study group meeting",
+                      "Lab research project",
+                      "Emergency equipment check",
+                      "Need to collect belongings",
                     ].map((reason) => (
                       <button
                         key={reason}
                         type="button"
                         onClick={() => setEmergencyReason(reason)}
-                        className={`rounded-lg p-2 text-left transition ${
+                        className={`rounded-xl p-2.5 text-left transition ${
                           emergencyReason === reason
                             ? "bg-cyan-glow/20 text-cyan-glow ring-1 ring-cyan-glow/40"
                             : "bg-white/5 text-ink-dim hover:bg-white/10"
@@ -815,8 +863,8 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                     type="text"
                     value={emergencyReason}
                     onChange={(e) => setEmergencyReason(e.target.value)}
-                    placeholder="Or type a custom justification…"
-                    className="mt-3 w-full rounded-xl bg-black/50 px-3.5 py-2.5 text-xs text-white placeholder-ink-faint ring-1 ring-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-glow"
+                    placeholder="Or type a custom note to the host…"
+                    className="mt-3 w-full rounded-xl bg-black/50 px-3.5 py-2.5 text-xs text-white placeholder-ink-faint ring-1 border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-glow"
                   />
                 </div>
 
@@ -831,15 +879,15 @@ export function PlayerView({ initial }: { initial: RoomSnapshot }) {
                   <button
                     onClick={submitEmergencyRequest}
                     disabled={submittingEmergency}
-                    className="flex items-center gap-1.5 rounded-xl bg-cyan-glow/20 px-5 py-2 text-xs font-bold uppercase tracking-wider text-cyan-glow ring-1 ring-cyan-glow/40 hover:bg-cyan-glow/30 active:scale-95"
+                    className="flex items-center gap-1.5 rounded-xl bg-cyan-glow/20 px-5 py-2 text-xs font-bold uppercase tracking-wider text-cyan-glow ring-1 ring-cyan-glow/40 hover:bg-cyan-glow/30 active:scale-95 transition"
                   >
                     {submittingEmergency ? (
                       <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Submitting…
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Sending…
                       </>
                     ) : (
                       <>
-                        <Send className="h-3.5 w-3.5" /> Submit Petition
+                        <Send className="h-3.5 w-3.5" /> Send Request
                       </>
                     )}
                   </button>

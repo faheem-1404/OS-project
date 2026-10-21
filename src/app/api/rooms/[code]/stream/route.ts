@@ -39,6 +39,7 @@ export async function GET(
           roleId: mePlayer?.roleId,
           badgeStatus: mePlayer?.badgeStatus,
           temporaryGrants: mePlayer?.temporaryGrants,
+          admissionStatus: mePlayer?.admissionStatus,
         }
       : null;
     return snap;

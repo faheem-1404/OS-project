@@ -39,6 +39,7 @@ export default async function PlayPage({
     roleId: mePlayer?.roleId,
     badgeStatus: mePlayer?.badgeStatus,
     temporaryGrants: mePlayer?.temporaryGrants,
+    admissionStatus: mePlayer?.admissionStatus,
   };
 
   return <PlayerView initial={snapshot} />;

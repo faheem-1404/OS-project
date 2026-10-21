@@ -7,34 +7,29 @@
    ================================================================== */
 
 @theme {
-  --color-void: #04070d;
-  --color-abyss: #070b14;
-  --color-panel: #0b1220;
-  --color-panel-2: #0f1826;
-  --color-edge: #1b2940;
+  --color-void: #090d16;
+  --color-abyss: #0c1220;
+  --color-panel: #111a2e;
+  --color-panel-2: #162038;
+  --color-edge: #1e2c4a;
 
-  --color-cyan-glow: #22d3ee;
-  --color-cyan-deep: #0891b2;
-  --color-granted: #2ee6a0;
-  --color-denied: #ff4d6d;
-  --color-warn: #ffb020;
-  --color-violet: #8b7cff;
+  --color-cyan-glow: #38bdf8;
+  --color-cyan-deep: #0284c7;
+  --color-granted: #10b981;
+  --color-denied: #f43f5e;
+  --color-warn: #f59e0b;
+  --color-violet: #6366f1;
 
-  --color-ink: #e8f1ff;
-  --color-ink-dim: #9fb2cc;
-  --color-ink-faint: #61748f;
+  --color-ink: #f8fafc;
+  --color-ink-dim: #94a3b8;
+  --color-ink-faint: #64748b;
 
-  --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+  --font-display: var(--font-display), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 :root {
   color-scheme: dark;
-}
-
-html,
-body {
-  height: 100%;
 }
 
 body {
@@ -47,8 +42,7 @@ body {
 }
 
 /* ------------------------------------------------------------------
-   Ambient layers: grid, vignette, scanline. Fixed so they never
-   interfere with scroll position.
+   Ambient soft glow background
    ------------------------------------------------------------------ */
 .campuslock-bg {
   position: fixed;
@@ -59,31 +53,15 @@ body {
 
 .campuslock-grid {
   background-image:
-    linear-gradient(to right, rgba(34, 211, 238, 0.055) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(34, 211, 238, 0.055) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 35%, transparent 100%);
-}
-
-.campuslock-scan::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.02) 0px,
-    rgba(255, 255, 255, 0.02) 1px,
-    transparent 1px,
-    transparent 4px
-  );
-  opacity: 0.5;
+    radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 60%),
+    radial-gradient(circle at 100% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 50%);
 }
 
 .campuslock-vignette {
   background: radial-gradient(
-    ellipse 120% 80% at 50% -10%,
-    rgba(34, 211, 238, 0.12),
-    transparent 60%
+    ellipse 100% 60% at 50% 0%,
+    rgba(14, 165, 233, 0.06),
+    transparent 70%
   );
 }
 
@@ -91,26 +69,23 @@ body {
    Surfaces
    ------------------------------------------------------------------ */
 .panel {
-  background: linear-gradient(
-    160deg,
-    rgba(15, 24, 38, 0.86),
-    rgba(8, 13, 22, 0.78)
-  );
-  border: 1px solid rgba(34, 211, 238, 0.14);
-  border-radius: 18px;
-  backdrop-filter: blur(14px);
+  background: rgba(17, 26, 46, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
 }
 
 .panel-tight {
-  background: rgba(13, 20, 32, 0.72);
+  background: rgba(15, 23, 42, 0.65);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
+  border-radius: 12px;
 }
 
 .edge-glow {
   box-shadow:
-    0 0 0 1px rgba(34, 211, 238, 0.22),
-    0 18px 60px -28px rgba(34, 211, 238, 0.55);
+    0 0 0 1px rgba(56, 189, 248, 0.2),
+    0 12px 40px -15px rgba(56, 189, 248, 0.25);
 }
 
 .hairline {

@@ -530,6 +530,8 @@ export class SupabaseStore {
   async updateUserRole(_code: string, _hostToken: string, _playerId: string, _newRole: string): Promise<void> {}
   async toggleUserRevocation(_code: string, _hostToken: string, _playerId: string): Promise<void> {}
   async resolveAccessRequest(_code: string, _hostToken: string, _requestId: string, _decision: "approve" | "reject"): Promise<void> {}
+  async resolveAdmission(_code: string, _hostToken: string, _playerId: string, _decision: "approve" | "reject"): Promise<void> {}
+  async approveAllAdmissions(_code: string, _hostToken: string): Promise<void> {}
   async attemptAccess(_code: string, _playerToken: string, _resourceId: string): Promise<{ granted: boolean; reason: string }> {
     return { granted: true, reason: "Access granted under Supabase fallback." };
   }
@@ -755,6 +757,7 @@ export class SupabaseStore {
       roleId: "undergrad",
       badgeStatus: "active",
       temporaryGrants: [],
+      admissionStatus: "approved",
     }));
     const leaderboard = [...players].sort(
       (a, b) => b.score - a.score || Date.parse(a.joinedAt) - Date.parse(b.joinedAt),

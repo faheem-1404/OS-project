@@ -56,7 +56,7 @@ export interface AuditLogEntry {
   actor: string;
   action: string;
   targetResource?: string;
-  outcome: "GRANTED" | "DENIED" | "REVOKED" | "PROMOTED" | "DEMOTED" | "EMERGENCY_APPROVED" | "EMERGENCY_REJECTED";
+  outcome: "GRANTED" | "DENIED" | "REVOKED" | "PROMOTED" | "DEMOTED" | "EMERGENCY_APPROVED" | "EMERGENCY_REJECTED" | "ADMISSION_REQUESTED" | "ADMISSION_APPROVED" | "ADMISSION_REJECTED";
   detail: string;
 }
 
@@ -70,6 +70,7 @@ export interface PlayerView {
   roleId: string;
   badgeStatus: "active" | "revoked";
   temporaryGrants: Array<{ resourceId: string; expiresAt: number }>;
+  admissionStatus: "pending" | "approved" | "rejected";
 }
 
 export interface VoteTally {
@@ -116,6 +117,7 @@ export interface RoomSnapshot {
     roleId?: string;
     badgeStatus?: "active" | "revoked";
     temporaryGrants?: Array<{ resourceId: string; expiresAt: number }>;
+    admissionStatus?: "pending" | "approved" | "rejected";
   } | null;
   /** Present only for the authenticated host. */
   isHost?: boolean;
